@@ -287,6 +287,8 @@ if severity_filter != "ALL":
     params["severity"] = severity_filter
 
 detections = _api_get("/detections", params=params) or []
+all_notices = _api_get("/notices") or []
+notices_map = {n.get("detection_id"): n for n in all_notices}
 
 if not detections:
     st.info("No road defect detections match the current filters.")
@@ -396,9 +398,7 @@ else:
 
             elif status == "APPROVED":
                 # Show download link for approved detections with a notice
-                notices = _api_get("/notices") or []
-                notice = next((n for n in notices if n.get(
-                    "detection_id") == det_id), None)
+                notice = notices_map.get(det_id)
                 if notice:
                     notice_id = notice.get("notice_id", "")
                     pdf_url = f"{API_URL}/notices/{notice_id}/pdf"
