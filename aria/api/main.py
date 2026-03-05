@@ -15,6 +15,7 @@ from typing import Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -38,6 +39,17 @@ app = FastAPI(
     title="A.R.I.A. — Autonomous Road Infrastructure Auditor",
     description="Backend API for road defect enforcement. Integrated with BBMP road segments and DLP contracts.",
     version="1.0.0",
+)
+
+# ─────────────────────────────────────────────────────────────
+# CORS Middleware — allows the dashboard to call the API
+# ─────────────────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 os.makedirs(NOTICES_DIR, exist_ok=True)
