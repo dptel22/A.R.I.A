@@ -2,5 +2,4 @@
 .venv
 /.agents/
 /aria.db
-
-
+__pycache__/
