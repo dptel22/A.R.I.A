@@ -1,3 +1,6 @@
 .idea
 .venv
-/data/
+/.agents/
+/aria.db
+
+
