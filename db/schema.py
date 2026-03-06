@@ -11,9 +11,13 @@ Env override:
 """
 from __future__ import annotations
 
+import logging
 import os
-import sqlite3
 import sys
+
+from db.connection import get_connection
+
+log: logging.Logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # DDL
@@ -25,8 +29,8 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS road_segments (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        name        TEXT    NOT NULL,
+        id          INTEGER PRIMARY KEY,
+        name        TEXT    NOT NULL UNIQUE,
         gps_min_lat REAL    NOT NULL,
         gps_max_lat REAL    NOT NULL,
         gps_min_lon REAL    NOT NULL,
@@ -41,13 +45,14 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS contracts (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id              INTEGER PRIMARY KEY,
         road_segment_id INTEGER NOT NULL REFERENCES road_segments(id) ON DELETE CASCADE,
         contractor_name  TEXT    NOT NULL,
         contractor_email TEXT    NOT NULL,
         dlp_end_date    TEXT    NOT NULL,   -- ISO-8601 date string e.g. '2025-12-31'
         contract_value  REAL,               -- optional
-        created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+        created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        UNIQUE (road_segment_id, contractor_name)
     )
     """,
     # -----------------------------------------------------------------------
@@ -55,7 +60,7 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS detections (
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                  INTEGER PRIMARY KEY,
         road_segment_id     INTEGER REFERENCES road_segments(id) ON DELETE SET NULL,
         contract_id         INTEGER REFERENCES contracts(id)     ON DELETE SET NULL,
         gps_lat             REAL    NOT NULL,
@@ -76,11 +81,12 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS notices (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        id           INTEGER PRIMARY KEY,
         detection_id INTEGER NOT NULL REFERENCES detections(id) ON DELETE CASCADE,
         contract_id  INTEGER NOT NULL REFERENCES contracts(id)  ON DELETE CASCADE,
         pdf_path     TEXT    NOT NULL,
-        generated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+        generated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        UNIQUE (detection_id, contract_id)
     )
     """,
 ]
@@ -109,23 +115,16 @@ def init_db(db_path: str) -> None:
 
     Safe to call on an already-initialised DB — all statements use
     CREATE TABLE/INDEX IF NOT EXISTS.
-
-    Pragmas applied per connection:
-        PRAGMA journal_mode = WAL;    -- concurrent readers, one writer
-        PRAGMA foreign_keys = ON;     -- enforce FK constraints
     """
-    con: sqlite3.Connection = sqlite3.connect(db_path)
+    con = get_connection(db_path)
     try:
-        con.execute("PRAGMA journal_mode = WAL")
-        con.execute("PRAGMA foreign_keys = ON")
-
         with con:  # auto-commit on success, rollback on exception
             for ddl in _DDL:
                 con.execute(ddl)
             for idx in _INDEXES:
                 con.execute(idx)
 
-        print(f"[schema] Database initialised at: {os.path.abspath(db_path)}")
+        log.info("Database initialised at: %s", os.path.abspath(db_path))
     finally:
         con.close()
 
@@ -135,6 +134,7 @@ def init_db(db_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, format="[%(name)s] %(message)s")
     path: str = (
         sys.argv[1]
         if len(sys.argv) > 1
