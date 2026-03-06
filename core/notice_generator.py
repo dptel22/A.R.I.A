@@ -6,41 +6,39 @@ from __future__ import annotations
 import datetime
 import logging
 import os
-from typing import Any
+import textwrap
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
+from core.models import ContractStatus, DetectionMetadata
+
 log: logging.Logger = logging.getLogger(__name__)
 
 
-def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str, Any], output_dir: str = "notices/") -> str:
+def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: ContractStatus, output_dir: str | None = None) -> str:
     """
     Generate an official, legally-binding enforcement notice PDF from the GBA.
 
     Args:
-        detection_data: Dictionary containing detection details (severity, gps_lat, gps_lon).
-        contract_data: Dictionary containing contract details (contractor_name, dlp_end_date, is_dlp_active).
-        output_dir: Directory to save the generated PDF.
+        detection_data: DetectionMetadata dataclass instance.
+        contract_data: ContractStatus dataclass instance.
+        output_dir: Directory to save the generated PDF. Defaults to ARIA_MEDIA_ROOT env var or './notices'.
 
     Returns:
         The absolute path to the generated PDF file.
     """
+    # 1. Resolve output directory via Environmental Variable, fallback to local path
+    if not output_dir:
+        output_dir = os.environ.get("ARIA_MEDIA_ROOT", "notices/")
+
     os.makedirs(output_dir, exist_ok=True)
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    contractor_slug = contract_data.get(
-        'contractor_name', 'Unknown').replace(" ", "_").replace("/", "_")
+    contractor_slug = contract_data.contractor_name.replace(
+        " ", "_").replace("/", "_")
     filename = f"Notice_{contractor_slug}_{timestamp}.pdf"
-
-    # Handle absolute vs relative path for output
-    if not os.path.isabs(output_dir):
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
-        output_dir = os.path.join(project_root, output_dir)
-        os.makedirs(output_dir, exist_ok=True)
-
     pdf_path = os.path.join(output_dir, filename)
 
     try:
@@ -61,7 +59,6 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
             width / 2.0, current_y, "Office of the Executive Engineer, East Zone City Corporation")
         current_y -= 0.4 * inch
 
-        # Line separator
         c.line(margins, current_y, width - margins, current_y)
         current_y -= 0.5 * inch
 
@@ -73,23 +70,30 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
                           f"Ref: GBA/EE/Z-East/ARI/{timestamp}")
         current_y -= 0.6 * inch
 
-        # 3. Addressee
+        # 3. Addressee (with basic text wrapping for long names)
         c.setFont("Helvetica-Bold", 11)
         c.drawString(margins, current_y, "To:")
         current_y -= 0.2 * inch
+
         c.setFont("Helvetica", 11)
-        c.drawString(margins, current_y,
-                     f"M/s {contract_data.get('contractor_name', 'Unknown')}")
-        current_y -= 0.2 * inch
-        c.drawString(margins, current_y,
-                     f"{contract_data.get('contractor_email', 'Email not on file')}")
+        # Wrap long contractor names to avoid running off the page
+        wrapped_name = textwrap.wrap(
+            f"M/s {contract_data.contractor_name}", width=70)
+        for line in wrapped_name:
+            c.drawString(margins, current_y, line)
+            current_y -= 0.2 * inch
+
+        c.drawString(margins, current_y, f"{contract_data.contractor_email}")
         current_y -= 0.6 * inch
 
-        # 4. Subject Line
+        # 4. Subject Line (wrapped)
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(margins, current_y,
-                     "SUBJECT: Mandatory rectification of road defects under active Defect Liability Period (DLP).")
-        current_y -= 0.5 * inch
+        subject_text = "SUBJECT: Mandatory rectification of road defects under active Defect Liability Period (DLP)."
+        wrapped_subject = textwrap.wrap(subject_text, width=80)
+        for line in wrapped_subject:
+            c.drawString(margins, current_y, line)
+            current_y -= 0.2 * inch
+        current_y -= 0.3 * inch
 
         # 5. Body Text
         c.setFont("Helvetica", 11)
@@ -109,18 +113,24 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
 
         # Contract Details Block
         c.setFont("Helvetica", 11)
+
+        # Wrap segment name
+        wrapped_segment = textwrap.wrap(
+            f"• Road Segment: {contract_data.segment_name}", width=80)
+        for line in wrapped_segment:
+            c.drawString(margins + 0.3 * inch, current_y, line)
+            current_y -= 0.2 * inch
+
+        dlp_end_str = str(
+            contract_data.dlp_end_date) if contract_data.dlp_end_date else 'Unknown'
         c.drawString(margins + 0.3 * inch, current_y,
-                     f"• Road Segment: {contract_data.get('segment_name', 'Unknown')}")
-        current_y -= 0.2 * inch
-        dlp_end = contract_data.get('dlp_end_date', 'Unknown')
-        c.drawString(margins + 0.3 * inch, current_y,
-                     f"• DLP End Date: {dlp_end}")
+                     f"• DLP End Date: {dlp_end_str}")
         current_y -= 0.4 * inch
 
         # Detection Details Block
-        lat = detection_data.get('gps_lat', 0.0)
-        lon = detection_data.get('gps_lon', 0.0)
-        severity = detection_data.get('severity', 'Unknown').upper()
+        lat = detection_data.gps_lat
+        lon = detection_data.gps_lon
+        severity_val = detection_data.severity.value.upper()
 
         c.drawString(margins, current_y, "Detection Metadata:")
         current_y -= 0.2 * inch
@@ -128,12 +138,11 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
                      f"• GPS Coordinates: {lat:.6f}, {lon:.6f}")
         current_y -= 0.2 * inch
         c.drawString(margins + 0.3 * inch, current_y,
-                     f"• Assessed Severity: {severity}")
+                     f"• Assessed Severity: {severity_val}")
         current_y -= 0.5 * inch
 
         # 6. Ultimatum (If Active)
-        is_dlp_active = contract_data.get('is_dlp_active', False)
-        if is_dlp_active:
+        if contract_data.is_dlp_active:
             c.setFont("Helvetica-Bold", 11)
             ultimatum_lines = [
                 "ACTION REQUIRED:",
@@ -156,20 +165,18 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
         image_box_height = 2.5 * inch
         image_box_width = width - (2 * margins)
 
-        # Check if we have space, if not, move to next page
         if current_y - image_box_height - (1.5 * inch) < margins:
             c.showPage()
             current_y = height - margins
 
-        current_y -= image_box_height  # Move cursor down by the height of the box FIRST
+        current_y -= image_box_height
         c.rect(margins, current_y, image_box_width, image_box_height)
 
         c.setFont("Helvetica-Oblique", 10)
-        # Center text inside the box
         c.drawCentredString(width / 2.0, current_y + (image_box_height /
                             2.0) - 4, "[ EVIDENCE IMAGE PLACEHOLDER ]")
 
-        current_y -= 0.5 * inch  # Add margin below the box
+        current_y -= 0.5 * inch
 
         # 8. Sign-off
         c.setFont("Helvetica", 11)
@@ -185,8 +192,8 @@ def generate_pdf_notice(detection_data: dict[str, Any], contract_data: dict[str,
                             "Digitally generated by A.R.I.A. Edge Inspection System — No wet signature required.")
 
         c.save()
-        log.info("Generated PDF notice at: %s", pdf_path)
-        return pdf_path
+        log.info("Generated PDF notice at: %s", os.path.abspath(pdf_path))
+        return os.path.abspath(pdf_path)
 
     except Exception as e:
         log.error("Failed to generate PDF notice: %s", e)
