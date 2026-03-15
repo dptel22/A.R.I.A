@@ -21,77 +21,74 @@ from db.connection import get_connection
 log: logging.Logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Seed data — 5 Bengaluru road segments + 5 contracts
+# Seed data
 # ---------------------------------------------------------------------------
 
-# Each tuple: (name, gps_min_lat, gps_max_lat, gps_min_lon, gps_max_lon)
-_SEGMENTS: list[tuple[str, float, float, float, float]] = [
+# (name, ward_id, zone_id, gps_min_lat, gps_max_lat, gps_min_lon, gps_max_lon)
+_SEGMENTS: list[tuple[str, str, str, float, float, float, float]] = [
     ("Outer Ring Road - Marathahalli to Silk Board",
-     12.9252, 12.9578, 77.6267, 77.6971),
+     "W-150", "East",       12.9252, 12.9578, 77.6267, 77.6971),
     ("Hosur Road - Electronic City Phase 1",
-     12.8399, 12.8652, 77.6746, 77.6985),
+     "W-193", "Bommanahalli", 12.8399, 12.8652, 77.6746, 77.6985),
     ("Bellary Road - Hebbal to Yelahanka",
-     13.0354, 13.1005, 77.5874, 77.6102),
+     "W-004", "Yelahanka",  13.0354, 13.1005, 77.5874, 77.6102),
     ("Mysuru Road - Kengeri to RR Nagar",
-     12.9082, 12.9347, 77.5165, 77.5524),
+     "W-128", "RR Nagar",   12.9082, 12.9347, 77.5165, 77.5524),
     ("Old Madras Road - KR Puram to Tin Factory",
-     12.9694, 12.9975, 77.6780, 77.7143),
+     "W-082", "Mahadevapura", 12.9694, 12.9975, 77.6780, 77.7143),
 ]
 
-# Each tuple:
 # (segment_idx, contractor_name, contractor_email, dlp_end_date, contract_value_INR)
-# DLP states relative to ~2026-03-06:
-#   EXPIRED (2024), EXPIRING SOON (within 90 days), ACTIVE (2027+)
 _CONTRACTS: list[tuple[int, str, str, str, float | None]] = [
     (0, "Infratech Solutions Pvt Ltd",  "contracts@infratech.in",
      "2024-06-30",  4_850_000.0),    # ₹48.5 lakh  — EXPIRED
     (1, "BangaloreRoads Corp",          "work@bangaloreroads.co.in",
-     "2026-03-31",  7_200_000.0),    # ₹72 lakh    — EXPIRING SOON (~25 days)
+     "2026-03-31",  7_200_000.0),    # ₹72 lakh    — EXPIRING SOON
     (2, "NirmaaConsult Engineering",    "nirmaa@nirmaaengg.com",
-     "2026-05-15",  9_550_000.0),    # ₹95.5 lakh  — EXPIRING SOON (~70 days)
+     "2026-05-15",  9_550_000.0),    # ₹95.5 lakh  — EXPIRING SOON
     (3, "GreenPath Infra Ltd",          "tenders@greenpathinfra.com",
      "2027-12-31", 12_500_000.0),    # ₹1.25 crore — ACTIVE
     (4, "SkyBuild Infrastructure",      "ops@skybuild.in",
      "2028-06-30",  None),           # value unknown — ACTIVE
 ]
 
-# (seg_idx, contract_idx, lat, lon, severity, confidence, bbox_json, img_path, status)
-_DETECTIONS: list[tuple[int, int, float, float, str, float, str, str | None, str]] = [
-    (0, 0, 12.9310, 77.6450, "damage_high",   0.92,
-     "[120,300,250,420]", "evidence/det_001.jpg", "APPROVED"),
-    (1, 1, 12.8510, 77.6820, "damage_medium", 0.78,
-     "[80,200,190,350]",  None,                   "PENDING"),
-    (2, 2, 13.0600, 77.5950, "damage_low",    0.65,
-     "[40,100,120,200]",  "evidence/det_003.jpg", "PENDING"),
-    (3, 3, 12.9120, 77.5300, "damage_high",   0.88,
-     "[200,400,350,550]", "evidence/det_004.jpg", "REJECTED"),
-    (4, 4, 12.9800, 77.6950, "damage_medium", 0.71,
-     "[60,150,180,300]",  None,                   "PENDING"),
+# Sample inspection events: (segment_idx, lat, lng)
+_INSPECTIONS: list[tuple[int, float, float]] = [
+    (0, 12.9310, 77.6450),
+    (1, 12.8510, 77.6820),
+    (2, 13.0600, 77.5950),
+    (3, 12.9120, 77.5300),
+    (4, 12.9800, 77.6950),
 ]
 
-# Notices — one per approved/rejected detection
-_NOTICES: list[tuple[int, int, str]] = [
-    (0, 0, "notices/notice_001.pdf"),  # detection 0, contract 0
-    (3, 3, "notices/notice_004.pdf"),  # detection 3, contract 3
+# Sample detections: (inspection_idx, class_name, confidence, bbox_x, bbox_y, bbox_w, bbox_h, severity_score, severity_level)
+_DETECTIONS: list[tuple[int, str, float, float, float, float, float, float, str]] = [
+    (0, "pothole",            0.92, 0.45, 0.60, 0.12, 0.15, 7.36, "CRITICAL"),
+    (0, "alligator_crack",    0.78, 0.20, 0.35, 0.18, 0.10, 3.54, "MEDIUM"),
+    (1, "transverse_crack",   0.65, 0.55, 0.40, 0.08, 0.05, 2.08, "MEDIUM"),
+    (2, "longitudinal_crack", 0.71, 0.30, 0.70, 0.04, 0.20, 1.08, "LOW"),
+    (3, "pothole",            0.88, 0.60, 0.50, 0.15, 0.18, 6.16, "CRITICAL"),
+    (3, "pothole",            0.55, 0.25, 0.30, 0.08, 0.10, 4.32, "HIGH"),
+    (4, "alligator_crack",    0.82, 0.40, 0.45, 0.20, 0.12, 3.72, "MEDIUM"),
 ]
 
 
 # ---------------------------------------------------------------------------
-# Helpers — INSERT OR IGNORE using DB-level UNIQUE constraints
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _upsert_segment(
     con: sqlite3.Connection,
-    name: str,
+    name: str, ward_id: str, zone_id: str,
     min_lat: float, max_lat: float,
     min_lon: float, max_lon: float,
 ) -> int:
     """Insert segment if name doesn't exist (UNIQUE enforced by DB), return id."""
     con.execute(
         """INSERT OR IGNORE INTO road_segments
-               (name, gps_min_lat, gps_max_lat, gps_min_lon, gps_max_lon)
-           VALUES (?, ?, ?, ?, ?)""",
-        (name, min_lat, max_lat, min_lon, max_lon),
+               (name, ward_id, zone_id, gps_min_lat, gps_max_lat, gps_min_lon, gps_max_lon)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (name, ward_id, zone_id, min_lat, max_lat, min_lon, max_lon),
     )
     row = con.execute(
         "SELECT id FROM road_segments WHERE name = ?", (name,)
@@ -123,58 +120,48 @@ def _upsert_contract(
     return int(row[0])
 
 
-def _upsert_detection(
+def _insert_inspection(
     con: sqlite3.Connection,
     segment_id: int,
-    contract_id: int,
-    lat: float, lon: float,
-    severity: str,
-    confidence: float,
-    bbox: str,
-    img_path: str | None,
-    status: str,
+    lat: float, lng: float,
 ) -> int:
-    """Insert detection (no natural UNIQUE key — use full SELECT check), return id."""
-    row = con.execute(
-        """SELECT id FROM detections
-           WHERE road_segment_id = ? AND gps_lat = ? AND gps_lon = ? AND severity = ?""",
-        (segment_id, lat, lon, severity),
-    ).fetchone()
-    if row:
-        return int(row[0])
+    """Insert inspection event, return id. Not idempotent — each seed run adds new events."""
     cur = con.execute(
-        """INSERT INTO detections
-               (road_segment_id, contract_id, gps_lat, gps_lon,
-                severity, confidence, bbox, evidence_image_path, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (segment_id, contract_id, lat, lon, severity,
-         confidence, bbox, img_path, status),
+        "INSERT INTO inspection_events (segment_id, lat, lng) VALUES (?, ?, ?)",
+        (segment_id, lat, lng),
     )
-    assert cur.lastrowid is not None, "lastrowid must be set after INSERT"
+    assert cur.lastrowid is not None
     return cur.lastrowid
 
 
-def _upsert_notice(
+def _insert_detection(
     con: sqlite3.Connection,
-    detection_id: int,
-    contract_id: int,
-    pdf_path: str,
-) -> None:
-    """Insert notice if (detection_id, contract_id) doesn't exist (DB UNIQUE)."""
-    con.execute(
-        """INSERT OR IGNORE INTO notices
-               (detection_id, contract_id, pdf_path)
-           VALUES (?, ?, ?)""",
-        (detection_id, contract_id, pdf_path),
+    inspection_event_id: int,
+    class_name: str, confidence: float,
+    bbox_x: float, bbox_y: float, bbox_w: float, bbox_h: float,
+    severity_score: float, severity_level: str,
+) -> int:
+    """Insert detection row, return id."""
+    cur = con.execute(
+        """INSERT INTO detections
+               (inspection_event_id, class_name, confidence,
+                bbox_x, bbox_y, bbox_w, bbox_h,
+                severity_score, severity_level)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (inspection_event_id, class_name, confidence,
+         bbox_x, bbox_y, bbox_w, bbox_h,
+         severity_score, severity_level),
     )
+    assert cur.lastrowid is not None
+    return cur.lastrowid
 
 
 # ---------------------------------------------------------------------------
-# Allowed table names for count queries (whitelist, not f-string interpolation)
+# Allowed table names for count queries
 # ---------------------------------------------------------------------------
 
 _TABLES: tuple[str, ...] = (
-    "road_segments", "contracts", "detections", "notices")
+    "road_segments", "contracts", "inspection_events", "detections", "notices")
 
 
 # ---------------------------------------------------------------------------
@@ -185,20 +172,30 @@ def seed_db(db_path: str) -> None:
     """
     Insert representative Bengaluru data into the database at *db_path*.
 
-    Fully idempotent: running this function multiple times will never
-    produce duplicate rows — uniqueness is enforced at the DB level
-    via UNIQUE constraints + INSERT OR IGNORE.
+    Segments and contracts are idempotent (INSERT OR IGNORE).
+    Inspection events and detections are NOT idempotent — to avoid
+    duplicate seed data, delete aria.db before re-seeding.
 
     The database must already be initialised via ``init_db`` before seeding.
     """
     con = get_connection(db_path)
     try:
+        # Check if we already have inspection events — skip if so
+        existing = con.execute("SELECT COUNT(*) FROM inspection_events").fetchone()
+        if existing and existing[0] > 0:
+            log.info("Seed data already present (%d inspection events). Skipping.", existing[0])
+            # Still print counts
+            for table in _TABLES:
+                row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                log.info("  %-25s: %d row(s)", table, row[0] if row else 0)
+            return
+
         with con:
             # --- segments ---------------------------------------------------
             seg_ids: list[int] = []
-            for name, mn_lat, mx_lat, mn_lon, mx_lon in _SEGMENTS:
+            for name, ward, zone, mn_lat, mx_lat, mn_lon, mx_lon in _SEGMENTS:
                 seg_ids.append(
-                    _upsert_segment(con, name, mn_lat, mx_lat, mn_lon, mx_lon)
+                    _upsert_segment(con, name, ward, zone, mn_lat, mx_lat, mn_lon, mx_lon)
                 )
 
             # --- contracts --------------------------------------------------
@@ -210,36 +207,26 @@ def seed_db(db_path: str) -> None:
                     )
                 )
 
-            # --- detections -------------------------------------------------
-            detection_ids: list[int] = []
-            for seg_idx, con_idx, lat, lon, sev, conf, bbox, img, status in _DETECTIONS:
-                detection_ids.append(
-                    _upsert_detection(
-                        con,
-                        seg_ids[seg_idx],
-                        contract_ids[con_idx],
-                        lat, lon, sev, conf, bbox, img, status,
-                    )
+            # --- inspection events ------------------------------------------
+            ie_ids: list[int] = []
+            for seg_idx, lat, lng in _INSPECTIONS:
+                ie_ids.append(
+                    _insert_inspection(con, seg_ids[seg_idx], lat, lng)
                 )
 
-            # --- notices ----------------------------------------------------
-            for det_local_idx, con_local_idx, pdf in _NOTICES:
-                _upsert_notice(
-                    con,
-                    detection_ids[det_local_idx],
-                    contract_ids[con_local_idx],
-                    pdf,
+            # --- detections -------------------------------------------------
+            for ie_idx, cls, conf, bx, by, bw, bh, score, level in _DETECTIONS:
+                _insert_detection(
+                    con, ie_ids[ie_idx],
+                    cls, conf, bx, by, bw, bh, score, level,
                 )
 
         log.info("Seed data loaded into: %s", os.path.abspath(db_path))
 
-        # Quick count summary (whitelist-safe table iteration)
-        counts: dict[str, int] = {}
+        # Quick count summary
         for table in _TABLES:
             row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-            counts[table] = row[0] if row else 0
-        for tbl, cnt in counts.items():
-            log.info("  %-20s: %d row(s)", tbl, cnt)
+            log.info("  %-25s: %d row(s)", table, row[0] if row else 0)
 
     finally:
         con.close()

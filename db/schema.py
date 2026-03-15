@@ -31,6 +31,8 @@ _DDL: list[str] = [
     CREATE TABLE IF NOT EXISTS road_segments (
         id          INTEGER PRIMARY KEY,
         name        TEXT    NOT NULL UNIQUE,
+        ward_id     TEXT    NOT NULL DEFAULT 'UNKNOWN',
+        zone_id     TEXT    NOT NULL DEFAULT 'UNKNOWN',
         gps_min_lat REAL    NOT NULL,
         gps_max_lat REAL    NOT NULL,
         gps_min_lon REAL    NOT NULL,
@@ -56,24 +58,37 @@ _DDL: list[str] = [
     )
     """,
     # -----------------------------------------------------------------------
-    # detections
+    # inspection_events  (parent of detections — one image = one event)
+    # -----------------------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS inspection_events (
+        id          INTEGER PRIMARY KEY,
+        segment_id  INTEGER NOT NULL REFERENCES road_segments(id) ON DELETE CASCADE,
+        inspector_id TEXT,              -- API key hash or worker ID for audit trail
+        lat         REAL    NOT NULL,
+        lng         REAL    NOT NULL,
+        image_path  TEXT,               -- optional, if saved to disk
+        created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    )
+    """,
+    # -----------------------------------------------------------------------
+    # detections  (children of inspection_events — one bbox = one detection)
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS detections (
-        id                  INTEGER PRIMARY KEY,
-        road_segment_id     INTEGER REFERENCES road_segments(id) ON DELETE SET NULL,
-        contract_id         INTEGER REFERENCES contracts(id)     ON DELETE SET NULL,
-        gps_lat             REAL    NOT NULL,
-        gps_lon             REAL    NOT NULL,
-        severity            TEXT    NOT NULL,
-        confidence          REAL    NOT NULL,
-        bbox                TEXT    NOT NULL DEFAULT '[]',   -- JSON array [x1,y1,x2,y2]
-        evidence_image_path TEXT,
-        status              TEXT    NOT NULL DEFAULT 'PENDING',
-        created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        CHECK (severity IN ('damage_low', 'damage_medium', 'damage_high')),
-        CHECK (status   IN ('PENDING', 'APPROVED', 'REJECTED')),
-        CHECK (confidence BETWEEN 0.0 AND 1.0)
+        id                    INTEGER PRIMARY KEY,
+        inspection_event_id   INTEGER NOT NULL REFERENCES inspection_events(id) ON DELETE CASCADE,
+        class_name            TEXT    NOT NULL,
+        confidence            REAL    NOT NULL,
+        bbox_x                REAL    NOT NULL,   -- normalised centre x (0-1)
+        bbox_y                REAL    NOT NULL,   -- normalised centre y (0-1)
+        bbox_w                REAL    NOT NULL,   -- normalised width  (0-1)
+        bbox_h                REAL    NOT NULL,   -- normalised height (0-1)
+        severity_score        REAL    NOT NULL,
+        severity_level        TEXT    NOT NULL,    -- LOW / MEDIUM / HIGH / CRITICAL
+        created_at            TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        CHECK (confidence BETWEEN 0.0 AND 1.0),
+        CHECK (severity_level IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'))
     )
     """,
     # -----------------------------------------------------------------------
@@ -81,26 +96,32 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS notices (
-        id           INTEGER PRIMARY KEY,
-        detection_id INTEGER NOT NULL REFERENCES detections(id) ON DELETE CASCADE,
-        contract_id  INTEGER NOT NULL REFERENCES contracts(id)  ON DELETE CASCADE,
-        pdf_path     TEXT    NOT NULL,
-        generated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        UNIQUE (detection_id, contract_id)
+        id                  INTEGER PRIMARY KEY,
+        inspection_event_id INTEGER NOT NULL REFERENCES inspection_events(id) ON DELETE CASCADE,
+        contract_id         INTEGER NOT NULL REFERENCES contracts(id)  ON DELETE CASCADE,
+        pdf_path            TEXT,        -- NULL for in-memory generation
+        generated_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        UNIQUE (inspection_event_id, contract_id)
     )
     """,
 ]
 
 # ---------------------------------------------------------------------------
-# Indexes (separate from table DDL so they can be added safely)
+# Indexes
 # ---------------------------------------------------------------------------
 
 _INDEXES: list[str] = [
     # Bounding-box spatial lookup on road_segments
     "CREATE INDEX IF NOT EXISTS idx_segs_bbox ON road_segments(gps_min_lat, gps_max_lat, gps_min_lon, gps_max_lon)",
-    # detections filtering / sorting
-    "CREATE INDEX IF NOT EXISTS idx_det_status     ON detections(status)",
-    "CREATE INDEX IF NOT EXISTS idx_det_severity   ON detections(severity)",
+    # ward/zone filtering
+    "CREATE INDEX IF NOT EXISTS idx_segs_ward ON road_segments(ward_id)",
+    "CREATE INDEX IF NOT EXISTS idx_segs_zone ON road_segments(zone_id)",
+    # inspection_events filtering
+    "CREATE INDEX IF NOT EXISTS idx_ie_segment    ON inspection_events(segment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ie_created_at ON inspection_events(created_at)",
+    # detections filtering
+    "CREATE INDEX IF NOT EXISTS idx_det_ie        ON detections(inspection_event_id)",
+    "CREATE INDEX IF NOT EXISTS idx_det_severity  ON detections(severity_level)",
     "CREATE INDEX IF NOT EXISTS idx_det_created_at ON detections(created_at)",
 ]
 
