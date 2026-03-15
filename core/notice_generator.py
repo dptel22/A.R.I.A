@@ -4,6 +4,7 @@ core/notice_generator.py — PDF Generation for A.R.I.A. Enforcement Notices.
 from __future__ import annotations
 
 import datetime
+import io
 import logging
 import os
 import textwrap
@@ -17,32 +18,43 @@ from core.models import ContractStatus, DetectionMetadata
 log: logging.Logger = logging.getLogger(__name__)
 
 
-def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: ContractStatus, output_dir: str | None = None) -> str:
+def generate_pdf_notice(
+    detection_data: DetectionMetadata,
+    contract_data: ContractStatus,
+    output_dir: str | None = None,
+    buffer: io.BytesIO | None = None,
+) -> str:
     """
     Generate an official, legally-binding enforcement notice PDF from the GBA.
 
     Args:
         detection_data: DetectionMetadata dataclass instance.
         contract_data: ContractStatus dataclass instance.
-        output_dir: Directory to save the generated PDF. Defaults to ARIA_MEDIA_ROOT env var or './notices'.
+        output_dir: Directory to save the generated PDF. Ignored if buffer is provided.
+        buffer: Optional BytesIO buffer for in-memory generation (used by the API).
 
     Returns:
-        The absolute path to the generated PDF file.
+        The absolute path to the generated PDF file, or "IN_MEMORY" if buffer was used.
     """
-    # 1. Resolve output directory via Environmental Variable, fallback to local path
-    if not output_dir:
-        output_dir = os.environ.get("ARIA_MEDIA_ROOT", "notices/")
+    # Determine output target: in-memory buffer or on-disk file
+    if buffer is not None:
+        pdf_target: str | io.BytesIO = buffer
+        pdf_path = "IN_MEMORY"
+    else:
+        if not output_dir:
+            output_dir = os.environ.get("ARIA_MEDIA_ROOT", "notices/")
+        os.makedirs(output_dir, exist_ok=True)
 
-    os.makedirs(output_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        contractor_slug = contract_data.contractor_name.replace(" ", "_").replace("/", "_")
+        filename = f"Notice_{contractor_slug}_{timestamp}.pdf"
+        pdf_path = os.path.join(output_dir, filename)
+        pdf_target = pdf_path
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    contractor_slug = contract_data.contractor_name.replace(
-        " ", "_").replace("/", "_")
-    filename = f"Notice_{contractor_slug}_{timestamp}.pdf"
-    pdf_path = os.path.join(output_dir, filename)
+    timestamp_ref = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     try:
-        c = canvas.Canvas(pdf_path, pagesize=A4)
+        c = canvas.Canvas(pdf_target, pagesize=A4)
         width, height = A4
 
         margins = 1.0 * inch
@@ -50,13 +62,11 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
 
         # 1. Official Header (GBA)
         c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width / 2.0, current_y,
-                            "GREATER BENGALURU AUTHORITY (GBA)")
+        c.drawCentredString(width / 2.0, current_y, "GREATER BENGALURU AUTHORITY (GBA)")
         current_y -= 0.3 * inch
 
         c.setFont("Helvetica", 12)
-        c.drawCentredString(
-            width / 2.0, current_y, "Office of the Executive Engineer, East Zone City Corporation")
+        c.drawCentredString(width / 2.0, current_y, "Office of the Executive Engineer, East Zone City Corporation")
         current_y -= 0.4 * inch
 
         c.line(margins, current_y, width - margins, current_y)
@@ -66,19 +76,16 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
         c.setFont("Helvetica", 11)
         generation_date = datetime.datetime.now().strftime("%d %B %Y")
         c.drawString(margins, current_y, f"Date: {generation_date}")
-        c.drawRightString(width - margins, current_y,
-                          f"Ref: GBA/EE/Z-East/ARI/{timestamp}")
+        c.drawRightString(width - margins, current_y, f"Ref: GBA/EE/Z-East/ARI/{timestamp_ref}")
         current_y -= 0.6 * inch
 
-        # 3. Addressee (with basic text wrapping for long names)
+        # 3. Addressee (with text wrapping for long names)
         c.setFont("Helvetica-Bold", 11)
         c.drawString(margins, current_y, "To:")
         current_y -= 0.2 * inch
 
         c.setFont("Helvetica", 11)
-        # Wrap long contractor names to avoid running off the page
-        wrapped_name = textwrap.wrap(
-            f"M/s {contract_data.contractor_name}", width=70)
+        wrapped_name = textwrap.wrap(f"M/s {contract_data.contractor_name}", width=70)
         for line in wrapped_name:
             c.drawString(margins, current_y, line)
             current_y -= 0.2 * inch
@@ -113,18 +120,13 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
 
         # Contract Details Block
         c.setFont("Helvetica", 11)
-
-        # Wrap segment name
-        wrapped_segment = textwrap.wrap(
-            f"• Road Segment: {contract_data.segment_name}", width=80)
+        wrapped_segment = textwrap.wrap(f"• Road Segment: {contract_data.segment_name}", width=80)
         for line in wrapped_segment:
             c.drawString(margins + 0.3 * inch, current_y, line)
             current_y -= 0.2 * inch
 
-        dlp_end_str = str(
-            contract_data.dlp_end_date) if contract_data.dlp_end_date else 'Unknown'
-        c.drawString(margins + 0.3 * inch, current_y,
-                     f"• DLP End Date: {dlp_end_str}")
+        dlp_end_str = str(contract_data.dlp_end_date) if contract_data.dlp_end_date else 'Unknown'
+        c.drawString(margins + 0.3 * inch, current_y, f"• DLP End Date: {dlp_end_str}")
         current_y -= 0.4 * inch
 
         # Detection Details Block
@@ -134,14 +136,12 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
 
         c.drawString(margins, current_y, "Detection Metadata:")
         current_y -= 0.2 * inch
-        c.drawString(margins + 0.3 * inch, current_y,
-                     f"• GPS Coordinates: {lat:.6f}, {lon:.6f}")
+        c.drawString(margins + 0.3 * inch, current_y, f"• GPS Coordinates: {lat:.6f}, {lon:.6f}")
         current_y -= 0.2 * inch
-        c.drawString(margins + 0.3 * inch, current_y,
-                     f"• Assessed Severity: {severity_val}")
+        c.drawString(margins + 0.3 * inch, current_y, f"• Assessed Severity: {severity_val}")
         current_y -= 0.5 * inch
 
-        # 6. Ultimatum (If Active)
+        # 6. Ultimatum (If Active DLP)
         if contract_data.is_dlp_active:
             c.setFont("Helvetica-Bold", 11)
             ultimatum_lines = [
@@ -155,8 +155,7 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
                 current_y -= 0.2 * inch
         else:
             c.setFont("Helvetica-Oblique", 11)
-            c.drawString(
-                margins, current_y, "NOTICE: The DLP has expired. This incident is logged for municipal assessment.")
+            c.drawString(margins, current_y, "NOTICE: The DLP has expired. This incident is logged for municipal assessment.")
             current_y -= 0.4 * inch
 
         current_y -= 0.2 * inch
@@ -173,8 +172,7 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
         c.rect(margins, current_y, image_box_width, image_box_height)
 
         c.setFont("Helvetica-Oblique", 10)
-        c.drawCentredString(width / 2.0, current_y + (image_box_height /
-                            2.0) - 4, "[ EVIDENCE IMAGE PLACEHOLDER ]")
+        c.drawCentredString(width / 2.0, current_y + (image_box_height / 2.0) - 4, "[ EVIDENCE IMAGE PLACEHOLDER ]")
 
         current_y -= 0.5 * inch
 
@@ -192,8 +190,13 @@ def generate_pdf_notice(detection_data: DetectionMetadata, contract_data: Contra
                             "Digitally generated by A.R.I.A. Edge Inspection System — No wet signature required.")
 
         c.save()
-        log.info("Generated PDF notice at: %s", os.path.abspath(pdf_path))
-        return os.path.abspath(pdf_path)
+
+        if pdf_path != "IN_MEMORY":
+            log.info("Generated PDF notice at: %s", os.path.abspath(pdf_path))
+            return os.path.abspath(pdf_path)
+        else:
+            log.info("Generated PDF notice in-memory.")
+            return pdf_path
 
     except Exception as e:
         log.error("Failed to generate PDF notice: %s", e)

@@ -2,4 +2,9 @@
 .venv
 /.agents/
 /aria.db
+/aria.db-wal
+/aria.db-shm
 __pycache__/
+.env
+notices/
+notices_test_output/

@@ -325,7 +325,21 @@ def list_detections(
             rs.ward_id,
             rs.zone_id,
             COUNT(d.id)        AS total_defects,
-            MAX(d.severity_level) AS highest_severity,
+            CASE MAX(
+                CASE d.severity_level
+                    WHEN 'CRITICAL' THEN 4
+                    WHEN 'HIGH'     THEN 3
+                    WHEN 'MEDIUM'   THEN 2
+                    WHEN 'LOW'      THEN 1
+                    ELSE 0
+                END
+            )
+                WHEN 4 THEN 'CRITICAL'
+                WHEN 3 THEN 'HIGH'
+                WHEN 2 THEN 'MEDIUM'
+                WHEN 1 THEN 'LOW'
+                ELSE 'NONE'
+            END AS highest_severity,
             SUM(CASE WHEN d.severity_level = 'CRITICAL' THEN 1 ELSE 0 END) AS critical_count,
             SUM(CASE WHEN d.severity_level = 'HIGH'     THEN 1 ELSE 0 END) AS high_count
         FROM inspection_events ie
