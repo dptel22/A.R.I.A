@@ -408,7 +408,7 @@ def get_notice(
     # Build the typed dataclasses that notice_generator expects
     # Map the API severity levels back to our Enum
     severity_map = {
-        "CRITICAL": SeverityLevel.HIGH,
+        "CRITICAL": SeverityLevel.CRITICAL,
         "HIGH": SeverityLevel.HIGH,
         "MEDIUM": SeverityLevel.MEDIUM,
         "LOW": SeverityLevel.LOW,

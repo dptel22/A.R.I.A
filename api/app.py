@@ -20,9 +20,11 @@ load_dotenv()
 log: logging.Logger = logging.getLogger(__name__)
 
 _MODEL_PATH: str = os.environ.get("ARIA_MODEL_PATH", "./aria_stage1.pt")
-_ALLOWED_ORIGINS: list[str] = os.environ.get(
-    "ARIA_ALLOWED_ORIGINS", "http://localhost:8501"
-).split(",")
+_ALLOWED_ORIGINS: list[str] = [
+    o.strip() for o in os.environ.get(
+        "ARIA_ALLOWED_ORIGINS", "http://localhost:8501"
+    ).split(",") if o.strip()
+]
 
 
 # ---------------------------------------------------------------------------
@@ -34,14 +36,21 @@ async def lifespan(app: FastAPI):
     """Load and warm up the YOLO model before accepting requests."""
     model = None
     if os.path.exists(_MODEL_PATH):
-        from ultralytics import YOLO
-        log.info("Loading YOLO model from %s ...", _MODEL_PATH)
-        model = YOLO(_MODEL_PATH)
+        try:
+            from ultralytics import YOLO
+            log.info("Loading YOLO model from %s ...", _MODEL_PATH)
+            model = YOLO(_MODEL_PATH)
 
-        # Warm-up run — first inference is 3-5x slower due to CUDA kernel init
-        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
-        model.predict(source=dummy, conf=0.25, verbose=False)
-        log.info("Model loaded and warmed up. Ready.")
+            # Warm-up run — first inference is 3-5x slower due to CUDA kernel init
+            dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+            model.predict(source=dummy, conf=0.25, verbose=False)
+            log.info("Model loaded and warmed up. Ready.")
+        except Exception:
+            log.exception(
+                "Failed to load YOLO model from %s. "
+                "POST /detect will return 503.", _MODEL_PATH,
+            )
+            model = None
     else:
         log.warning(
             "Model file not found at %s. POST /detect will return 503. "

@@ -29,9 +29,16 @@ def get_connection(db_path: str) -> sqlite3.Connection:
             ...
         finally:
             con.close()
+
+    If either PRAGMA fails, the connection is closed before the
+    exception propagates — no leaked file descriptors.
     """
     con: sqlite3.Connection = sqlite3.connect(db_path)
-    con.execute("PRAGMA journal_mode = WAL")
-    con.execute("PRAGMA foreign_keys = ON")
+    try:
+        con.execute("PRAGMA journal_mode = WAL")
+        con.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        con.close()
+        raise
     log.debug("Opened connection to %s (WAL, FK=ON)", db_path)
     return con

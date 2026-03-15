@@ -55,7 +55,7 @@ def main():
             confidence=0.98
         )
 
-        # Test text wrapping by artificially artificially lengthening the contractor name
+        # Test text wrapping by artificially lengthening the contractor name
         # We don't want to mutate the dataclass (frozen), so we'll just test the standard generation
         # Let's ensure ARIA_MEDIA_ROOT is working
         os.environ["ARIA_MEDIA_ROOT"] = "notices_test_output/"

@@ -88,7 +88,11 @@ _DDL: list[str] = [
         severity_level        TEXT    NOT NULL,    -- LOW / MEDIUM / HIGH / CRITICAL
         created_at            TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
         CHECK (confidence BETWEEN 0.0 AND 1.0),
-        CHECK (severity_level IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'))
+        CHECK (severity_level IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+        CHECK (bbox_x BETWEEN 0.0 AND 1.0),
+        CHECK (bbox_y BETWEEN 0.0 AND 1.0),
+        CHECK (bbox_w BETWEEN 0.0 AND 1.0),
+        CHECK (bbox_h BETWEEN 0.0 AND 1.0)
     )
     """,
     # -----------------------------------------------------------------------

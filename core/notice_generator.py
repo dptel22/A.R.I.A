@@ -7,6 +7,7 @@ import datetime
 import io
 import logging
 import os
+import re
 import textwrap
 
 from reportlab.lib.pagesizes import A4
@@ -46,9 +47,19 @@ def generate_pdf_notice(
         os.makedirs(output_dir, exist_ok=True)
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        contractor_slug = contract_data.contractor_name.replace(" ", "_").replace("/", "_")
+        # Secure slug: strip path-traversal chars, collapse to safe chars only
+        raw_name = contract_data.contractor_name
+        contractor_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", raw_name)
+        contractor_slug = re.sub(r"_+", "_", contractor_slug).strip("_")[:80]
+        if not contractor_slug:
+            contractor_slug = "unknown"
         filename = f"Notice_{contractor_slug}_{timestamp}.pdf"
         pdf_path = os.path.join(output_dir, filename)
+        # Validate path stays inside output_dir (prevent directory escape)
+        abs_output = os.path.abspath(output_dir)
+        abs_pdf = os.path.abspath(pdf_path)
+        if not abs_pdf.startswith(abs_output):
+            raise ValueError(f"Path traversal detected: {abs_pdf} escapes {abs_output}")
         pdf_target = pdf_path
 
     timestamp_ref = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

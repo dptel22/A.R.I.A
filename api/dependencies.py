@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import sys
 from collections.abc import Generator
 
 from dotenv import load_dotenv
@@ -24,6 +25,14 @@ log: logging.Logger = logging.getLogger(__name__)
 _API_KEY: str = os.environ.get("ARIA_API_KEY", "")
 _DB_PATH: str = os.environ.get("ARIA_DB_PATH", "./aria.db")
 
+# Fail-fast: refuse to start if API key is missing or empty
+if not _API_KEY:
+    log.critical(
+        "ARIA_API_KEY is not set or is empty. "
+        "Set it in .env or as an environment variable. Aborting."
+    )
+    sys.exit(1)
+
 
 # ---------------------------------------------------------------------------
 # Auth dependency
@@ -36,10 +45,10 @@ def get_api_key(x_api_key: str = Header(default=None)) -> str:
     Returns the validated key on success.
 
     Raises:
-        HTTPException 401: Missing header.
+        HTTPException 401: Missing or empty header.
         HTTPException 403: Invalid key.
     """
-    if x_api_key is None:
+    if not x_api_key:
         raise HTTPException(
             status_code=401,
             detail="Missing API key. Include x-api-key header.",

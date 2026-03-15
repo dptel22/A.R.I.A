@@ -3,7 +3,7 @@ core/models.py — Data structures and Enums for the Core A.R.I.A. layer.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 
@@ -13,6 +13,7 @@ class SeverityLevel(str, Enum):
     LOW = "damage_low"
     MEDIUM = "damage_medium"
     HIGH = "damage_high"
+    CRITICAL = "damage_critical"
 
 
 class ActionType(str, Enum):
@@ -38,6 +39,26 @@ class ContractStatus:
     segment_name: str
     contract_id: int
     contractor_name: str
-    contractor_email: str
-    dlp_end_date: date | None
-    is_dlp_active: bool
+    contractor_email: str = field(repr=False)   # PII — excluded from repr/logs
+    dlp_end_date: date | None = None
+    is_dlp_active: bool = False
+
+    @property
+    def masked_contractor_email(self) -> str:
+        """Return a redacted email safe for logs and external serialisation."""
+        if not self.contractor_email or "@" not in self.contractor_email:
+            return "***"
+        local, domain = self.contractor_email.split("@", 1)
+        return f"{local[0]}***@{domain}"
+
+    def to_public_dict(self) -> dict:
+        """Return a dict safe for API responses / logging (email masked)."""
+        return {
+            "segment_id": self.segment_id,
+            "segment_name": self.segment_name,
+            "contract_id": self.contract_id,
+            "contractor_name": self.contractor_name,
+            "contractor_email": self.masked_contractor_email,
+            "dlp_end_date": str(self.dlp_end_date) if self.dlp_end_date else None,
+            "is_dlp_active": self.is_dlp_active,
+        }
