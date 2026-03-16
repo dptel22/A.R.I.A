@@ -6,5 +6,8 @@
 /aria.db-shm
 __pycache__/
 .env
+.streamlit/
 notices/
 notices_test_output/
+*.pt
+images/
