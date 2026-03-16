@@ -14,40 +14,22 @@ import logging
 import sqlite3
 from typing import Any
 
-import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from PIL import Image
 
 from api.dependencies import get_api_key, get_db
 from core.notice_generator import generate_pdf_notice
 from core.models import ContractStatus, DetectionMetadata, SeverityLevel
+from inference.pipeline import run_pipeline
 
 log: logging.Logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Constants
+# Constants (inference now lives in inference/ package)
 # ---------------------------------------------------------------------------
 
-# YOLO class names — must match model training order
-CLASS_NAMES: dict[int, str] = {
-    0: "longitudinal_crack",
-    1: "transverse_crack",
-    2: "alligator_crack",
-    3: "pothole",
-}
-
-# Base severity per damage type (higher = worse)
-BASE_SEVERITY: dict[str, int] = {
-    "pothole":            4,   # CRITICAL
-    "alligator_crack":    3,   # HIGH
-    "transverse_crack":   2,   # MEDIUM
-    "longitudinal_crack": 1,   # LOW
-}
-
-# Severity level thresholds
 SEVERITY_ORDER: dict[str, int] = {
     "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4,
 }
@@ -60,20 +42,6 @@ _LNG_DELTA: float = 0.00022
 _MAX_FILE_SIZE: int = 10 * 1024 * 1024   # 10 MB
 _ALLOWED_CONTENT_TYPES: set[str] = {"image/jpeg", "image/png"}
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _map_score_to_level(score: float) -> str:
-    """Map a composite severity score to a human-readable level."""
-    if score >= 6.0:
-        return "CRITICAL"
-    if score >= 4.0:
-        return "HIGH"
-    if score >= 2.0:
-        return "MEDIUM"
-    return "LOW"
 
 
 def _find_segment(con: sqlite3.Connection, lat: float, lng: float) -> dict[str, Any] | None:
@@ -160,52 +128,12 @@ async def detect(
             "suggestion": "Verify GPS signal and retry outdoors.",
         })
 
-    # --- Step 3: YOLO inference -----------------------------------------------
+    # --- Step 3+4: Run inference pipeline (detector + severity scoring) --------
     model = request.app.state.model
     if model is None:
         raise HTTPException(503, "YOLO model not loaded. Server cannot process detections.")
 
-    img_pil = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-    img_array = np.array(img_pil)
-
-    results = model.predict(
-        source=img_array,
-        conf=0.25,
-        iou=0.45,
-        verbose=False,
-        imgsz=640,
-    )
-
-    # --- Step 4: Extract + score detections -----------------------------------
-    raw_detections: list[dict[str, Any]] = []
-    for box in results[0].boxes:
-        class_id = int(box.cls[0])
-        class_name = CLASS_NAMES.get(class_id, f"unknown_{class_id}")
-        confidence = float(box.conf[0])
-        # Normalised xywh
-        xywhn = box.xywhn[0]
-        bbox_x, bbox_y, bbox_w, bbox_h = (
-            float(xywhn[0]), float(xywhn[1]),
-            float(xywhn[2]), float(xywhn[3]),
-        )
-
-        # Composite severity score
-        base = BASE_SEVERITY.get(class_name, 1)
-        area_ratio = bbox_w * bbox_h
-        area_weight = 1.0 + min(area_ratio * 10, 1.0)
-        severity_score = round(base * area_weight, 3)
-        severity_level = _map_score_to_level(severity_score)
-
-        raw_detections.append({
-            "class_name": class_name,
-            "confidence": round(confidence, 4),
-            "bbox_x": round(bbox_x, 4),
-            "bbox_y": round(bbox_y, 4),
-            "bbox_w": round(bbox_w, 4),
-            "bbox_h": round(bbox_h, 4),
-            "severity_score": severity_score,
-            "severity_level": severity_level,
-        })
+    raw_detections = run_pipeline(img_bytes, model)
 
     # --- Step 5: Store in DB --------------------------------------------------
     if not raw_detections:
