@@ -106,7 +106,7 @@ def generate_pdf_notice(
             c.drawString(margins, current_y, line)
             current_y -= 0.2 * inch
 
-        c.drawString(margins, current_y, f"{contract_data.contractor_email}")
+        c.drawString(margins, current_y, f"{contract_data.masked_contractor_email}")
         current_y -= 0.6 * inch
 
         # 4. Subject Line (wrapped)

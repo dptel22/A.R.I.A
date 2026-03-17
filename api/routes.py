@@ -139,7 +139,11 @@ async def detect(
     if model is None:
         raise HTTPException(503, "YOLO model not loaded. Server cannot process detections.")
 
-    raw_detections = run_pipeline(img_bytes, model)
+    try:
+        raw_detections = run_pipeline(img_bytes, model)
+    except Exception as e:
+        log.error("Pipeline crashed during /detect: %s", e)
+        raise HTTPException(500, "Internal error during image processing and inference.")
 
     # --- Step 5: Store in DB --------------------------------------------------
     if not raw_detections:
@@ -289,8 +293,12 @@ def list_detections(
     """
     params.extend([limit, offset])
 
-    rows = db.execute(query, params).fetchall()
-    results = [dict(r) for r in rows]
+    try:
+        rows = db.execute(query, params).fetchall()
+        results = [dict(r) for r in rows]
+    except sqlite3.Error as e:
+        log.error("Database error during list_detections: %s", e)
+        raise HTTPException(500, "An internal database error occurred while fetching detections.")
 
     return {
         "total_returned": len(results),

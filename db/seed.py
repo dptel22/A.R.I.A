@@ -63,11 +63,11 @@ _INSPECTIONS: list[tuple[int, float, float]] = [
 
 # Sample detections: (inspection_idx, class_name, confidence, bbox_x, bbox_y, bbox_w, bbox_h, severity_score, severity_level)
 _DETECTIONS: list[tuple[int, str, float, float, float, float, float, float, str]] = [
-    (0, "pothole",            0.92, 0.45, 0.60, 0.12, 0.15, 7.36, "CRITICAL"),
+    (0, "pothole",            0.92, 0.45, 0.60, 0.25, 0.25, 6.50, "CRITICAL"),
     (0, "alligator_crack",    0.78, 0.20, 0.35, 0.18, 0.10, 3.54, "MEDIUM"),
     (1, "transverse_crack",   0.65, 0.55, 0.40, 0.08, 0.05, 2.08, "MEDIUM"),
     (2, "longitudinal_crack", 0.71, 0.30, 0.70, 0.04, 0.20, 1.08, "LOW"),
-    (3, "pothole",            0.88, 0.60, 0.50, 0.15, 0.18, 6.16, "CRITICAL"),
+    (3, "pothole",            0.88, 0.60, 0.50, 0.25, 0.25, 6.50, "CRITICAL"),
     (3, "pothole",            0.55, 0.25, 0.30, 0.08, 0.10, 4.32, "HIGH"),
     (4, "alligator_crack",    0.82, 0.40, 0.45, 0.20, 0.12, 3.72, "MEDIUM"),
 ]

@@ -28,15 +28,12 @@ def run_pipeline(img_bytes: bytes, model: Any) -> list[dict[str, Any]]:
         bbox_x, bbox_y, bbox_w, bbox_h,
         severity_score, severity_level
 
-    Returns an empty list if *model* is None, no detections are found,
-    or any error occurs during processing.
-
-    **Never raises** — all exceptions are caught and logged so the HTTP
-    request handler receives an empty list rather than a 500 error.
+    Returns an empty list if no detections are found.
+    Raises RuntimeError if an error occurs during processing.
     """
     if model is None:
         log.warning("run_pipeline called with no model loaded")
-        return []
+        raise RuntimeError("YOLO model not loaded.")
 
     try:
         # Convert bytes → RGB numpy array
@@ -67,4 +64,4 @@ def run_pipeline(img_bytes: bytes, model: Any) -> list[dict[str, Any]]:
 
     except Exception as e:
         log.error("Pipeline failed: %s", e, exc_info=True)
-        return []
+        raise RuntimeError(f"Inference pipeline failed: {e}") from e

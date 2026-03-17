@@ -10,10 +10,10 @@ from enum import Enum
 
 class SeverityLevel(str, Enum):
     """Native severity classes outputted by the YOLOv11 model."""
-    LOW = "damage_low"
-    MEDIUM = "damage_medium"
-    HIGH = "damage_high"
-    CRITICAL = "damage_critical"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 class ActionType(str, Enum):
