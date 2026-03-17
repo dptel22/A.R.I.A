@@ -109,9 +109,15 @@ async def detect(
     if file.content_type not in _ALLOWED_CONTENT_TYPES:
         raise HTTPException(400, "Only JPEG and PNG images are accepted.")
 
-    img_bytes = await file.read()
-    if len(img_bytes) > _MAX_FILE_SIZE:
-        raise HTTPException(413, f"Image too large. Maximum size is {_MAX_FILE_SIZE // (1024*1024)}MB.")
+    # Read file in chunks to prevent memory exhaustion
+    chunks = []
+    total_size = 0
+    while part := await file.read(1024 * 1024):  # 1 MB chunks
+        total_size += len(part)
+        if total_size > _MAX_FILE_SIZE:
+            raise HTTPException(413, f"Image too large. Maximum size is {_MAX_FILE_SIZE // (1024*1024)}MB.")
+        chunks.append(part)
+    img_bytes = b"".join(chunks)
 
     if not (-90 <= lat <= 90):
         raise HTTPException(422, f"Invalid latitude: {lat}")
@@ -230,7 +236,9 @@ def list_detections(
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-    if min_severity and min_severity in SEVERITY_ORDER:
+    if min_severity:
+        if min_severity not in SEVERITY_ORDER:
+            raise HTTPException(400, f"Invalid min_severity: {min_severity}. Allowed: {list(SEVERITY_ORDER.keys())}")
         min_rank = SEVERITY_ORDER[min_severity]
         having_clause = f"""
         HAVING MAX(

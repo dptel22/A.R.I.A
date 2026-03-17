@@ -56,10 +56,15 @@ def generate_pdf_notice(
         filename = f"Notice_{contractor_slug}_{timestamp}.pdf"
         pdf_path = os.path.join(output_dir, filename)
         # Validate path stays inside output_dir (prevent directory escape)
-        abs_output = os.path.abspath(output_dir)
-        abs_pdf = os.path.abspath(pdf_path)
-        if not abs_pdf.startswith(abs_output):
-            raise ValueError(f"Path traversal detected: {abs_pdf} escapes {abs_output}")
+        from pathlib import Path as _Path
+        abs_output = _Path(output_dir).resolve()
+        abs_pdf = _Path(pdf_path).resolve()
+        try:
+            abs_pdf.relative_to(abs_output)
+        except ValueError:
+            raise ValueError(
+                f"Path traversal detected: {abs_pdf} escapes {abs_output}"
+            )
         pdf_target = pdf_path
 
     timestamp_ref = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

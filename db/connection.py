@@ -35,7 +35,13 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     """
     con: sqlite3.Connection = sqlite3.connect(db_path)
     try:
-        con.execute("PRAGMA journal_mode = WAL")
+        wal_result = con.execute("PRAGMA journal_mode = WAL").fetchone()
+        if not wal_result or wal_result[0].lower() != "wal":
+            raise RuntimeError(
+                f"PRAGMA journal_mode = WAL failed — got {wal_result!r}. "
+                "The database may be on a filesystem that does not support WAL "
+                "(e.g. some NFS mounts). Cannot guarantee safe concurrent access."
+            )
         con.execute("PRAGMA foreign_keys = ON")
     except Exception:
         con.close()

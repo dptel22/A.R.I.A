@@ -27,9 +27,16 @@ def determine_action(severity: SeverityLevel | str) -> ActionType:
             raise ValueError(f"Unknown severity level: {severity!r}")
 
     mapping = {
-        SeverityLevel.LOW: ActionType.LOG_ONLY,
-        SeverityLevel.MEDIUM: ActionType.FLAG_INSPECTOR,
-        SeverityLevel.HIGH: ActionType.ENFORCE,
+        SeverityLevel.LOW:      ActionType.LOG_ONLY,
+        SeverityLevel.MEDIUM:   ActionType.FLAG_INSPECTOR,
+        SeverityLevel.HIGH:     ActionType.ENFORCE,
+        SeverityLevel.CRITICAL: ActionType.ENFORCE,
     }
 
-    return mapping[severity]
+    action = mapping.get(severity)
+    if action is None:
+        raise ValueError(
+            f"No action mapping defined for severity level: {severity!r}. "
+            f"Known levels: {list(mapping.keys())}"
+        )
+    return action

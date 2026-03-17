@@ -49,6 +49,8 @@ class ContractStatus:
         if not self.contractor_email or "@" not in self.contractor_email:
             return "***"
         local, domain = self.contractor_email.split("@", 1)
+        if not local:
+            return f"***@{domain}"
         return f"{local[0]}***@{domain}"
 
     def to_public_dict(self) -> dict:

@@ -38,6 +38,8 @@ if not _API_KEY:
 # Auth dependency
 # ---------------------------------------------------------------------------
 
+import secrets
+
 def get_api_key(x_api_key: str = Header(default=None)) -> str:
     """
     Validate the ``x-api-key`` header on every protected endpoint.
@@ -53,7 +55,7 @@ def get_api_key(x_api_key: str = Header(default=None)) -> str:
             status_code=401,
             detail="Missing API key. Include x-api-key header.",
         )
-    if x_api_key != _API_KEY:
+    if not secrets.compare_digest(x_api_key, _API_KEY):
         raise HTTPException(
             status_code=403,
             detail="Invalid API key.",

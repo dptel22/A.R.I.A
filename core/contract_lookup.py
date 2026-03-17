@@ -37,8 +37,7 @@ def find_contract_by_gps(lat: float, lon: float, db_path: str) -> ContractStatus
                 c.id AS contract_id,
                 c.contractor_name,
                 c.contractor_email,
-                c.dlp_end_date,
-                c.contract_value
+                c.dlp_end_date
             FROM road_segments rs
             JOIN contracts c ON rs.id = c.road_segment_id
             WHERE ? BETWEEN rs.gps_min_lat AND rs.gps_max_lat
@@ -79,11 +78,11 @@ def find_contract_by_gps(lat: float, lon: float, db_path: str) -> ContractStatus
             is_dlp_active = today <= dlp_end_date
 
             if is_dlp_active:
-                log.info("Contract for %s active until %s",
-                         result["contractor_name"], dlp_end_date)
+                log.debug("Contract %s active until %s",
+                          result["contract_id"], dlp_end_date)
             else:
-                log.info("Contract for %s EXPIRED on %s",
-                         result["contractor_name"], dlp_end_date)
+                log.debug("Contract %s EXPIRED on %s",
+                          result["contract_id"], dlp_end_date)
 
         return ContractStatus(
             segment_id=result["segment_id"],
