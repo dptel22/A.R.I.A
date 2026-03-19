@@ -174,13 +174,23 @@ async def detect(
     try:
         contract = _find_contract(db, segment["id"])
         if contract:
-            contract_info = {
-                "contractor_name": contract["contractor_name"],
-                "contractor_email": contract["contractor_email"],
-                "dlp_end_date": contract["dlp_end_date"],
-                "is_dlp_active": contract["is_dlp_active"],
-                "is_enforceable": contract["is_dlp_active"],
-            }
+            try:
+                dlp_end = datetime.datetime.strptime(contract["dlp_end_date"], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                dlp_end = None
+
+            # Use ContractStatus model to safely mask PII (email)
+            status_obj = ContractStatus(
+                segment_id=segment["id"],
+                segment_name=segment["name"],
+                contract_id=contract["id"],
+                contractor_name=contract["contractor_name"],
+                contractor_email=contract["contractor_email"],
+                dlp_end_date=dlp_end,
+                is_dlp_active=contract["is_dlp_active"],
+            )
+            contract_info = status_obj.to_public_dict()
+            contract_info["is_enforceable"] = contract["is_dlp_active"]
     except Exception as e:
         log.warning("Contract lookup failed for segment %s: %s", segment["id"], e)
 
