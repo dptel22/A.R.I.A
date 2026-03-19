@@ -10,9 +10,6 @@ import io
 import logging
 from typing import Any
 
-import numpy as np
-from PIL import Image
-
 from inference.detector import detect
 from inference.severity_calc import score
 
@@ -39,6 +36,9 @@ def run_pipeline(img_bytes: bytes, model: Any) -> list[dict[str, Any]]:
         return []
 
     try:
+        import numpy as np
+        from PIL import Image
+
         # Convert bytes → RGB numpy array
         img_pil = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         img_array = np.array(img_pil)

@@ -9,8 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import numpy as np
-
 log: logging.Logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -32,7 +30,7 @@ IOU_THRESHOLD: float = 0.45
 # Public API
 # ---------------------------------------------------------------------------
 
-def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
+def detect(img_array: Any, model: Any) -> list[dict[str, Any]]:
     """
     Run YOLO inference on a numpy image array.
 
