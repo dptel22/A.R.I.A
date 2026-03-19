@@ -208,8 +208,7 @@ def draw_boxes_on_image(
 
         # Rectangle
         thickness = max(2, h // 200)
-        for i in range(thickness):
-            draw.rectangle([x1 - i, y1 - i, x2 + i, y2 + i], outline=colour)
+        draw.rectangle([x1, y1, x2, y2], outline=colour, width=thickness)
 
         # Label above box
         label = f"{det['class_name'].replace('_', ' ')} {det['confidence']:.0%}"
