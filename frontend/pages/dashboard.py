@@ -56,8 +56,14 @@ def render() -> None:
 
     # ── Summary metrics ──────────────────────────────────────────────
     total = data["total_returned"]
-    critical = sum(1 for r in results if r.get("highest_severity") == "CRITICAL")
-    high = sum(1 for r in results if r.get("highest_severity") == "HIGH")
+    critical = 0
+    high = 0
+    for r in results:
+        sev = r.get("highest_severity")
+        if sev == "CRITICAL":
+            critical += 1
+        elif sev == "HIGH":
+            high += 1
     other = total - critical - high
 
     col1, col2, col3, col4 = st.columns(4)

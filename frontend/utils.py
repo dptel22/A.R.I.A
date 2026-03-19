@@ -75,9 +75,12 @@ def get_api_key() -> str:
 # API client
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=60, show_spinner=False)
 def api_get(endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """
     Make an authenticated GET request to the A.R.I.A. API.
+    Calls are cached for 60 seconds to prevent dashboard slider interactions 
+    from overwhelming the backend.
 
     Returns the JSON response on success, or None on error
     (error messages are displayed via ``st.error``).

@@ -157,17 +157,23 @@ async def detect(
         )
         inspection_id = cur.lastrowid
 
-        for det in raw_detections:
-            db.execute(
-                """INSERT INTO detections
-                       (inspection_event_id, class_name, confidence,
-                        bbox_x, bbox_y, bbox_w, bbox_h,
-                        severity_score, severity_level)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (inspection_id, det["class_name"], det["confidence"],
-                 det["bbox_x"], det["bbox_y"], det["bbox_w"], det["bbox_h"],
-                 det["severity_score"], det["severity_level"]),
+        detection_values = [
+            (
+                inspection_id, det["class_name"], det["confidence"],
+                det["bbox_x"], det["bbox_y"], det["bbox_w"], det["bbox_h"],
+                det["severity_score"], det["severity_level"]
             )
+            for det in raw_detections
+        ]
+        
+        db.executemany(
+            """INSERT INTO detections
+                   (inspection_event_id, class_name, confidence,
+                    bbox_x, bbox_y, bbox_w, bbox_h,
+                    severity_score, severity_level)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            detection_values,
+        )
 
     # --- Step 6: Contract lookup (informational, never fails the request) -----
     contract_info: dict[str, Any] = {"status": "NO_CONTRACT", "contractor_name": None, "is_dlp_active": False}
