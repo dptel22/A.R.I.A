@@ -186,7 +186,7 @@ def seed_db(db_path: str) -> None:
             log.info("Seed data already present (%d inspection events). Skipping.", existing[0])
             # Still print counts
             for table in _TABLES:
-                row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # nosec B608
                 log.info("  %-25s: %d row(s)", table, row[0] if row else 0)
             return
 
@@ -225,7 +225,7 @@ def seed_db(db_path: str) -> None:
 
         # Quick count summary
         for table in _TABLES:
-            row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+            row = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # nosec B608
             log.info("  %-25s: %d row(s)", table, row[0] if row else 0)
 
     finally:
