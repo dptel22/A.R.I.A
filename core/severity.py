@@ -33,7 +33,11 @@ def determine_action(severity: SeverityLevel | str) -> ActionType:
         SeverityLevel.CRITICAL: ActionType.ENFORCE,
     }
 
-    action = mapping.get(severity)
+    try:
+        action = mapping.get(severity)
+    except TypeError:
+        # e.g. unhashable types like list or dict
+        raise ValueError(f"Invalid severity type: {type(severity)}")
     if action is None:
         raise ValueError(
             f"No action mapping defined for severity level: {severity!r}. "
