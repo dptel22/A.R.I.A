@@ -64,15 +64,19 @@ def setup_model(dest_path: str = MODEL_DEST) -> str:
 
         print("✅ Clone complete. Searching for best.pt …")
 
-        # Search recursively for any best.pt file
+        # Search recursively for any .pt file, looking for YOLOv8_Small_RDD.pt or similar
         matches = glob.glob(os.path.join(
-            clone_target, "**", "best.pt"), recursive=True)
+            clone_target, "**", "YOLOv8_Small_RDD.pt"), recursive=True)
 
         if not matches:
-            raise FileNotFoundError(
-                "No 'best.pt' found inside the cloned repository. "
-                "The repo structure may have changed — please check manually."
-            )
+            # Fallback to any .pt if we can't find that specific one
+            matches = glob.glob(os.path.join(
+                clone_target, "**", "*.pt"), recursive=True)
+            if not matches:
+                raise FileNotFoundError(
+                    "No '.pt' model file found inside the cloned repository. "
+                    "The repo structure may have changed — please check manually."
+                )
 
         # Use the first match (typically there's only one)
         src_pt = matches[0]

@@ -3,9 +3,9 @@ REM run_aria.bat — A.R.I.A. System Launcher (Windows)
 REM Run from inside the aria/ directory.
 REM Uses the project's .venv Python interpreter.
 
-SET PYTHON=..\\.venv\\Scripts\\python.exe
-SET UVICORN=..\\.venv\\Scripts\\uvicorn.exe
-SET STREAMLIT=..\\.venv\\Scripts\\streamlit.exe
+SET PYTHON=python
+SET UVICORN=uvicorn
+SET STREAMLIT=streamlit
 
 echo.
 echo ============================================================
