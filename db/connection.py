@@ -33,7 +33,7 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     If either PRAGMA fails, the connection is closed before the
     exception propagates — no leaked file descriptors.
     """
-    con: sqlite3.Connection = sqlite3.connect(db_path)
+    con: sqlite3.Connection = sqlite3.connect(db_path, check_same_thread=False)
     try:
         wal_result = con.execute("PRAGMA journal_mode = WAL").fetchone()
         if not wal_result or wal_result[0].lower() != "wal":

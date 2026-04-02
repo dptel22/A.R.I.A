@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "C:\\Users\\dhruv\\PycharmProjects\\datasets",
+  "weights_dir": "C:\\Users\\dhruv\\PycharmProjects\\A.R.I.A\\weights",
+  "runs_dir": "C:\\Users\\dhruv\\PycharmProjects\\A.R.I.A\\runs",
+  "uuid": "841968b901941ef23a4104eacec0adb6b37b0ae443a8014e57aad0e776a18a71",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

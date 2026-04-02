@@ -62,13 +62,22 @@ _DDL: list[str] = [
     # -----------------------------------------------------------------------
     """
     CREATE TABLE IF NOT EXISTS inspection_events (
-        id          INTEGER PRIMARY KEY,
-        segment_id  INTEGER NOT NULL REFERENCES road_segments(id) ON DELETE CASCADE,
-        inspector_id TEXT,              -- API key hash or worker ID for audit trail
-        lat         REAL    NOT NULL,
-        lng         REAL    NOT NULL,
-        image_path  TEXT,               -- optional, if saved to disk
-        created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+        id                      INTEGER PRIMARY KEY,
+        segment_id              INTEGER NOT NULL REFERENCES road_segments(id) ON DELETE CASCADE,
+        inspector_id            TEXT,              -- API key hash or worker ID for audit trail
+        lat                     REAL    NOT NULL,
+        lng                     REAL    NOT NULL,
+        image_path              TEXT,               -- optional, if saved to disk
+        pipeline_status         TEXT    NOT NULL DEFAULT 'NO_DETECTIONS',
+        failure_reason          TEXT,
+        contract_id_snapshot    INTEGER REFERENCES contracts(id) ON DELETE SET NULL,
+        contractor_name_snapshot TEXT,
+        contractor_email_snapshot TEXT,
+        dlp_end_date_snapshot   TEXT,
+        is_dlp_active_snapshot  INTEGER NOT NULL DEFAULT 0,
+        created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        CHECK (pipeline_status IN ('SUCCEEDED', 'NO_DETECTIONS', 'FAILED')),
+        CHECK (is_dlp_active_snapshot IN (0, 1))
     )
     """,
     # -----------------------------------------------------------------------
@@ -123,11 +132,129 @@ _INDEXES: list[str] = [
     # inspection_events filtering
     "CREATE INDEX IF NOT EXISTS idx_ie_segment    ON inspection_events(segment_id)",
     "CREATE INDEX IF NOT EXISTS idx_ie_created_at ON inspection_events(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_ie_pipeline_status ON inspection_events(pipeline_status)",
     # detections filtering
     "CREATE INDEX IF NOT EXISTS idx_det_ie        ON detections(inspection_event_id)",
     "CREATE INDEX IF NOT EXISTS idx_det_severity  ON detections(severity_level)",
     "CREATE INDEX IF NOT EXISTS idx_det_created_at ON detections(created_at)",
 ]
+
+
+_INSPECTION_EVENT_COLUMNS: dict[str, str] = {
+    "pipeline_status": "ALTER TABLE inspection_events ADD COLUMN pipeline_status TEXT NOT NULL DEFAULT 'NO_DETECTIONS'",
+    "failure_reason": "ALTER TABLE inspection_events ADD COLUMN failure_reason TEXT",
+    "contract_id_snapshot": "ALTER TABLE inspection_events ADD COLUMN contract_id_snapshot INTEGER REFERENCES contracts(id) ON DELETE SET NULL",
+    "contractor_name_snapshot": "ALTER TABLE inspection_events ADD COLUMN contractor_name_snapshot TEXT",
+    "contractor_email_snapshot": "ALTER TABLE inspection_events ADD COLUMN contractor_email_snapshot TEXT",
+    "dlp_end_date_snapshot": "ALTER TABLE inspection_events ADD COLUMN dlp_end_date_snapshot TEXT",
+    "is_dlp_active_snapshot": "ALTER TABLE inspection_events ADD COLUMN is_dlp_active_snapshot INTEGER NOT NULL DEFAULT 0",
+}
+
+
+def _get_existing_columns(con, table_name: str) -> set[str]:
+    return {
+        row[1]
+        for row in con.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+
+
+def _ensure_inspection_event_columns(con) -> None:
+    existing_columns = _get_existing_columns(con, "inspection_events")
+    for column_name, ddl in _INSPECTION_EVENT_COLUMNS.items():
+        if column_name not in existing_columns:
+            con.execute(ddl)
+
+
+def _backfill_inspection_event_accountability(con) -> None:
+    con.execute(
+        """
+        UPDATE inspection_events
+        SET pipeline_status = CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM detections d
+                WHERE d.inspection_event_id = inspection_events.id
+            ) THEN 'SUCCEEDED'
+            ELSE 'NO_DETECTIONS'
+        END
+        WHERE pipeline_status IS NULL
+           OR pipeline_status = ''
+        """
+    )
+
+    con.execute(
+        """
+        UPDATE inspection_events
+        SET contract_id_snapshot = COALESCE(
+                contract_id_snapshot,
+                (
+                    SELECT c.id
+                    FROM contracts c
+                    WHERE c.road_segment_id = inspection_events.segment_id
+                    ORDER BY c.created_at DESC
+                    LIMIT 1
+                )
+            ),
+            contractor_name_snapshot = COALESCE(
+                contractor_name_snapshot,
+                (
+                    SELECT c.contractor_name
+                    FROM contracts c
+                    WHERE c.road_segment_id = inspection_events.segment_id
+                    ORDER BY c.created_at DESC
+                    LIMIT 1
+                )
+            ),
+            contractor_email_snapshot = COALESCE(
+                contractor_email_snapshot,
+                (
+                    SELECT c.contractor_email
+                    FROM contracts c
+                    WHERE c.road_segment_id = inspection_events.segment_id
+                    ORDER BY c.created_at DESC
+                    LIMIT 1
+                )
+            ),
+            dlp_end_date_snapshot = COALESCE(
+                dlp_end_date_snapshot,
+                (
+                    SELECT c.dlp_end_date
+                    FROM contracts c
+                    WHERE c.road_segment_id = inspection_events.segment_id
+                    ORDER BY c.created_at DESC
+                    LIMIT 1
+                )
+            ),
+            is_dlp_active_snapshot = CASE
+                WHEN contract_id_snapshot IS NULL
+                 AND contractor_name_snapshot IS NULL
+                 AND contractor_email_snapshot IS NULL
+                 AND dlp_end_date_snapshot IS NULL THEN COALESCE(
+                    (
+                        SELECT CASE
+                            WHEN c.dlp_end_date IS NOT NULL
+                             AND date(c.dlp_end_date) >= date('now') THEN 1
+                            ELSE 0
+                        END
+                        FROM contracts c
+                        WHERE c.road_segment_id = inspection_events.segment_id
+                        ORDER BY c.created_at DESC
+                        LIMIT 1
+                    ),
+                    0
+                )
+                ELSE is_dlp_active_snapshot
+            END
+        """
+    )
+
+    con.execute(
+        """
+        UPDATE inspection_events
+        SET is_dlp_active_snapshot = 0
+        WHERE is_dlp_active_snapshot IS NULL
+        """
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +273,8 @@ def init_db(db_path: str) -> None:
         with con:  # auto-commit on success, rollback on exception
             for ddl in _DDL:
                 con.execute(ddl)
+            _ensure_inspection_event_columns(con)
+            _backfill_inspection_event_accountability(con)
             for idx in _INDEXES:
                 con.execute(idx)
 

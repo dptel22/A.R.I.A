@@ -11,3 +11,4 @@ notices/
 notices_test_output/
 *.pt
 images/
+data/

@@ -55,7 +55,12 @@ def main() -> None:
         print(f"Image: {img_path.name}")
 
         img_bytes = img_path.read_bytes()
-        results = run_pipeline(img_bytes, model)
+        pipeline_result = run_pipeline(img_bytes, model)
+        results = pipeline_result.detections
+
+        if pipeline_result.status == "FAILED":
+            print(f"  Pipeline failed: {pipeline_result.failure_reason}\n")
+            continue
 
         if not results:
             print("  No detections\n")

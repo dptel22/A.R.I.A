@@ -14,17 +14,22 @@ import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
 log: logging.Logger = logging.getLogger(__name__)
 
 _MODEL_PATH: str = os.environ.get("ARIA_MODEL_PATH", "./aria_stage1.pt")
+_UPLOAD_ROOT: str = os.environ.get("ARIA_UPLOAD_DIR", "./data/uploads")
 _ALLOWED_ORIGINS: list[str] = [
     o.strip() for o in os.environ.get(
-        "ARIA_ALLOWED_ORIGINS", "http://localhost:8501"
+        "ARIA_ALLOWED_ORIGINS",
+        "http://localhost:8501,http://localhost:3000,http://localhost:5173",
     ).split(",") if o.strip()
 ]
+
+os.makedirs(_UPLOAD_ROOT, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +86,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.mount("/uploads", StaticFiles(directory=_UPLOAD_ROOT), name="uploads")
 
 
 # ---------------------------------------------------------------------------

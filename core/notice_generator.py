@@ -148,7 +148,7 @@ def generate_pdf_notice(
         # Detection Details Block
         lat = detection_data.gps_lat
         lon = detection_data.gps_lon
-        severity_val = detection_data.severity.value.upper()
+        severity_val = detection_data.severity.public_label
 
         c.drawString(margins, current_y, "Detection Metadata:")
         current_y -= 0.2 * inch

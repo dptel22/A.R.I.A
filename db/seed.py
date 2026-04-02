@@ -11,6 +11,7 @@ Env override:
 """
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import sqlite3
@@ -124,11 +125,39 @@ def _insert_inspection(
     con: sqlite3.Connection,
     segment_id: int,
     lat: float, lng: float,
+    pipeline_status: str,
+    contract_id_snapshot: int | None = None,
+    contractor_name_snapshot: str | None = None,
+    contractor_email_snapshot: str | None = None,
+    dlp_end_date_snapshot: str | None = None,
+    is_dlp_active_snapshot: bool = False,
 ) -> int:
     """Insert inspection event, return id. Not idempotent — each seed run adds new events."""
     cur = con.execute(
-        "INSERT INTO inspection_events (segment_id, lat, lng) VALUES (?, ?, ?)",
-        (segment_id, lat, lng),
+        """
+        INSERT INTO inspection_events (
+            segment_id,
+            lat,
+            lng,
+            pipeline_status,
+            contract_id_snapshot,
+            contractor_name_snapshot,
+            contractor_email_snapshot,
+            dlp_end_date_snapshot,
+            is_dlp_active_snapshot
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            segment_id,
+            lat,
+            lng,
+            pipeline_status,
+            contract_id_snapshot,
+            contractor_name_snapshot,
+            contractor_email_snapshot,
+            dlp_end_date_snapshot,
+            int(is_dlp_active_snapshot),
+        ),
     )
     assert cur.lastrowid is not None
     return cur.lastrowid
@@ -210,8 +239,21 @@ def seed_db(db_path: str) -> None:
             # --- inspection events ------------------------------------------
             ie_ids: list[int] = []
             for seg_idx, lat, lng in _INSPECTIONS:
+                _, contractor_name, contractor_email, dlp_end_date, _ = _CONTRACTS[seg_idx]
+                is_dlp_active = datetime.date.today() <= datetime.date.fromisoformat(dlp_end_date)
                 ie_ids.append(
-                    _insert_inspection(con, seg_ids[seg_idx], lat, lng)
+                    _insert_inspection(
+                        con,
+                        seg_ids[seg_idx],
+                        lat,
+                        lng,
+                        pipeline_status="SUCCEEDED",
+                        contract_id_snapshot=contract_ids[seg_idx],
+                        contractor_name_snapshot=contractor_name,
+                        contractor_email_snapshot=contractor_email,
+                        dlp_end_date_snapshot=dlp_end_date,
+                        is_dlp_active_snapshot=is_dlp_active,
+                    )
                 )
 
             # --- detections -------------------------------------------------

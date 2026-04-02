@@ -17,11 +17,11 @@ log: logging.Logger = logging.getLogger(__name__)
 # Constants (previously hardcoded in api/routes.py)
 # ---------------------------------------------------------------------------
 
-CLASS_NAMES: dict[int, str] = {
-    0: "longitudinal_crack",
-    1: "transverse_crack",
-    2: "alligator_crack",
-    3: "pothole",
+EXPECTED_CLASS_NAMES: set[str] = {
+    "longitudinal_crack",
+    "transverse_crack",
+    "alligator_crack",
+    "pothole",
 }
 
 CONF_THRESHOLD: float = 0.25
@@ -31,6 +31,34 @@ IOU_THRESHOLD: float = 0.45
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def _resolve_class_names(model: Any) -> dict[int, str]:
+    cached = getattr(model, "_aria_class_names", None)
+    if cached is not None:
+        return cached
+
+    model_names = getattr(model, "names", None)
+    if model_names is None:
+        raise ValueError("YOLO model metadata is missing `names`; cannot map defect classes safely.")
+
+    if isinstance(model_names, dict):
+        class_names = {int(class_id): str(name) for class_id, name in model_names.items()}
+    elif isinstance(model_names, list):
+        class_names = {index: str(name) for index, name in enumerate(model_names)}
+    else:
+        raise ValueError(f"Unsupported YOLO model.names metadata type: {type(model_names)!r}")
+
+    available = set(class_names.values())
+    missing = EXPECTED_CLASS_NAMES - available
+    if missing:
+        raise ValueError(
+            "YOLO model metadata is missing expected defect classes: "
+            + ", ".join(sorted(missing))
+        )
+
+    model._aria_class_names = class_names
+    return class_names
 
 def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
     """
@@ -55,6 +83,8 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
             f"got {'None' if img_array is None else img_array.shape}"
         )
 
+    class_names = _resolve_class_names(model)
+
     results = model.predict(
         source=img_array,
         conf=CONF_THRESHOLD,
@@ -70,7 +100,9 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
     raw: list[dict[str, Any]] = []
     for box in results[0].boxes:
         class_id = int(box.cls[0])
-        class_name = CLASS_NAMES.get(class_id, f"unknown_{class_id}")
+        if class_id not in class_names:
+            raise ValueError(f"YOLO returned unknown class id {class_id}; model metadata is inconsistent.")
+        class_name = class_names[class_id]
         confidence = float(box.conf[0])
 
         # Normalised centre-x, centre-y, width, height

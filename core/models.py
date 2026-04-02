@@ -15,6 +15,10 @@ class SeverityLevel(str, Enum):
     HIGH = "damage_high"
     CRITICAL = "damage_critical"
 
+    @property
+    def public_label(self) -> str:
+        return self.name
+
 
 class ActionType(str, Enum):
     """Business actions determined by severity."""
