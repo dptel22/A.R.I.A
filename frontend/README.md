@@ -2,16 +2,19 @@
 
 This is the React + Vite municipal review console for A.R.I.A.
 
-## Local setup
+For the full project story, architecture, setup instructions, demo flow, and verification commands, start with the root [`README.md`](../README.md).
 
-1. Install dependencies:
-   `npm install`
-2. Copy the example environment file:
-   `copy .env.example .env.local`
-3. Set:
-   - `VITE_ARIA_API_URL`
-   - `VITE_ARIA_API_KEY`
-4. Start the frontend:
-   `npm run dev`
+## Frontend Quickstart
 
-The app expects the FastAPI backend to be running separately on the configured API URL.
+```bash
+npm install
+copy .env.example .env.local
+npm run dev
+```
+
+Set these variables in `.env.local`:
+
+- `VITE_ARIA_API_URL`
+- `VITE_ARIA_API_KEY`
+
+The frontend expects the FastAPI backend to be running separately.

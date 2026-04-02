@@ -1,14 +1,33 @@
-.idea
-.venv
-/.agents/
-/aria.db
-/aria.db-wal
-/aria.db-shm
-__pycache__/
-.env
+# Editor and local development
+.idea/
+.venv/
+.agents/
 .streamlit/
+
+# Python and runtime caches
+__pycache__/
+.pytest_cache/
+.python-runtime/
+.pytest_tmp/
+.yolo-config/
+
+# Local databases and test artifacts
+aria.db
+aria.db-wal
+aria.db-shm
+api-test-*.db
+api-test-*.db-wal
+api-test-*.db-shm
+
+# Generated artifacts
 notices/
 notices_test_output/
+data/uploads/
+frontend/dist/
+
+# Secrets and logs
+.env
+*.log
+
+# Large local assets
 *.pt
-images/
-data/

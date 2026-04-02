@@ -1,102 +1,294 @@
-# A.R.I.A. (Automated Road Inspection Agent)
+# A.R.I.A. | Automated Road Inspection & Accountability
 
-An **edge-deployable AI system** for real-time road damage detection, automated severity assessment, and contract enforcement notice generation.
+[![CI](https://github.com/dptel22/A.R.I.A/actions/workflows/ci.yml/badge.svg)](https://github.com/dptel22/A.R.I.A/actions/workflows/ci.yml)
 
-## System Architecture
-A.R.I.A. operates through two primary layers designed for resilience and fast iteration:
-1. **Inference Pipeline & Core API (FastAPI)**: Integrates a fine-tuned **YOLOv11n model** that processes incoming road imagery, detecting defects across a **4-class severity model** (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`). It performs geospatial coordinate matching to map detections to active municipal road contracts and determines if the Defect Liability Period (DLP) is enforceable.
-2. **Municipal Review Console (React + Vite)**: A desktop-first frontend for municipal engineers to upload geo-tagged images into the detection pipeline, review historical inspections, inspect live bounding boxes, and open generated **PDF enforcement notices**.
+A.R.I.A. is a civic-tech inspection platform built for municipal road maintenance teams. It combines a FastAPI backend, a YOLO-based road-damage pipeline, a SQLite accountability store, and a React review console so engineers can inspect detections, review repeated failures on the same road segment, and generate contractor-facing notice PDFs.
 
-## Module Breakdown
-- `/api`: The FastAPI application defining critical REST endpoints (e.g., `/detect`, `/detections`, `/notices/{id}`).
-- `/core`: Domain logic models, severity mapping algorithms, and the ReportLab-powered PDF enforcement notice generator.
-- `/inference`: The isolated YOLOv11 pipeline wrapping model loading and image inferences.
-- `/frontend`: The React + Vite municipal review console.
-- `/db`: SQLite schema initialization and data seeding utilities.
+This repository is designed to be readable by a hiring manager and runnable by an engineer from a fresh clone.
 
-## Prerequisites
-- **Python 3.10+**
-- Appropriate C/C++ build tools (for dependencies on Windows/Linux)
-- Required modules defined in `requirements.txt`
+## Why This Project Matters
 
-## Local Setup
+Municipal road inspections are often slow, inconsistent, and hard to audit. A.R.I.A. turns a road image and GPS coordinates into:
 
-**1. Clone and Virtual Environment**
+- a structured inspection record
+- severity-ranked defect detections
+- contractor and DLP context
+- a repeat-flag history for the same road segment
+- an engineer-facing review workflow with generated notice exports
+
+The recent implementation pass focused on **trust and accountability**:
+
+- failed inference is no longer silently reported as a clean road
+- every inspection attempt is persisted, including failed and zero-detection runs
+- contract and DLP state are snapshotted at inspection time for historical stability
+- repeat segment history is exposed in the engineer UI
+- notice downloads now work through authenticated frontend fetches
+
+## Highlights
+
+- **FastAPI backend** with structured inspection and notice endpoints
+- **YOLO-powered damage pipeline** with metadata-based class validation
+- **SQLite audit store** with inspection snapshots and repeat-failure visibility
+- **React + Vite review console** for queue triage, case detail, and decision history
+- **ReportLab PDF notice generation** for contractor-facing enforcement artifacts
+- **GitHub Actions CI** for backend tests and frontend build validation
+
+## Tech Stack
+
+- Backend: FastAPI, Uvicorn, SQLite, Python
+- Inference: Ultralytics YOLO, NumPy, Pillow
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS
+- Reporting: ReportLab
+- Testing: Pytest, TypeScript typecheck
+
+## Architecture
+
+### Backend API
+
+The backend accepts uploads, maps coordinates to road segments, runs inference, stores inspection history, and exposes engineer-facing endpoints for queue/detail/history and notice export.
+
+Important backend modules:
+
+- `api/`: HTTP entrypoints and request handling
+- `db/`: schema, connection factory, and seed data
+- `core/`: domain models, severity logic, and notice generation
+- `inference/`: detection and scoring pipeline
+
+### Review Console
+
+The frontend is a municipal review dashboard that shows:
+
+- a prioritized queue of inspections
+- inspection detail with overlays and accountability context
+- decision history with repeat-segment timeline
+- derived ingestion summaries for demo presentation
+
+## Quickstart
+
+### 1. Clone the repository
+
 ```bash
 git clone https://github.com/dptel22/A.R.I.A.git
 cd A.R.I.A
+```
+
+### 2. Set up Python
+
+```bash
 python -m venv .venv
-# On Windows:
+```
+
+Windows:
+
+```bash
 .venv\Scripts\activate
-# On Linux/MacOS:
+```
+
+macOS / Linux:
+
+```bash
 source .venv/bin/activate
 ```
 
-**2. Install Dependencies**
+Install backend dependencies:
+
 ```bash
 pip install -r requirements.txt
+pip install pytest
 ```
 
-**3. Environment Configuration**
+### 3. Configure backend environment
+
+Copy the template:
+
+```bash
+copy .env.example .env
+```
+
+macOS / Linux:
+
 ```bash
 cp .env.example .env
-# Edit .env to populate the ARIA_API_KEY and local paths.
 ```
 
-**4. Initialize Database**
-To construct the local SQLite database schema and seed it with initial test segments and dummy contractors:
+Required values in `.env`:
+
+- `ARIA_API_KEY`
+- `ARIA_DB_PATH`
+- `ARIA_MODEL_PATH`
+- `ARIA_ALLOWED_ORIGINS`
+- `ARIA_UPLOAD_DIR`
+
+The template also includes:
+
+- `ARIA_MODEL_RELEASE_URL`
+
+### 4. Seed the local database
+
 ```bash
 python -m db.seed
 ```
 
-## Running the Application Layers
+This creates a local SQLite DB with demo road segments, contracts, and seeded inspections.
 
-### API Backend
-Start the Uvicorn ASGI server hosting the FastAPI instance on port `8000`:
-```bash
-uvicorn api.app:app --reload
-```
+### 5. Set up the frontend
 
-### Dashboard Frontend
-Start the React frontend on port `3000`:
 ```bash
 cd frontend
 npm install
 copy .env.example .env.local
+```
+
+macOS / Linux:
+
+```bash
+cp .env.example .env.local
+```
+
+Set these values in `frontend/.env.local`:
+
+- `VITE_ARIA_API_URL=http://localhost:8000`
+- `VITE_ARIA_API_KEY=<same value as ARIA_API_KEY>`
+
+### 6. Start the backend
+
+From the project root:
+
+```bash
+uvicorn api.app:app --reload --port 8000
+```
+
+### 7. Start the frontend
+
+From `frontend/`:
+
+```bash
 npm run dev
 ```
 
-Populate `frontend/.env.local` with:
+Open the frontend in your browser and use the seeded Bengaluru coordinates listed below.
 
-- `VITE_ARIA_API_URL`
-- `VITE_ARIA_API_KEY`
+## Run Modes
 
-## Downloading BLR Potholes Data For Local Testing
+### Demo Mode
 
-If you want to test A.R.I.A. against the `warlockdn/blr-potholes-data` GitHub issues dataset, use the one-time downloader:
+Demo mode works **without the YOLO model file**.
+
+You can still:
+
+- start the backend
+- browse the dashboard
+- inspect seeded cases
+- review repeat segment history
+- open generated notices for seeded detections
+
+You cannot run new live detections until the model weights are available.
+
+### Full Detection Mode
+
+To enable live detection, download the YOLO weights from the latest GitHub Release:
 
 ```bash
-python -m tools.download_blr_potholes
+python -m tools.download_model
 ```
 
-This writes local files to:
+Default asset target:
 
-- `data/blr_potholes/images/`
-- `data/blr_potholes/manifest.jsonl`
-- `data/blr_potholes/download_failures.jsonl`
+- release asset: `aria_stage1.pt`
+- default download URL: `https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_stage1.pt`
+- default local path: `./aria_stage1.pt`
 
-Helpful options:
+You can change the path with `ARIA_MODEL_PATH`.
+
+More detail: [docs/model-release.md](docs/model-release.md)
+
+## Demo Flow
+
+Use one of the seeded Bengaluru coordinates when running a live upload in the UI:
+
+- `12.9310, 77.6450`
+- `13.0600, 77.5950`
+- `12.9800, 77.6950`
+
+Expected demo reviewer flow:
+
+1. Launch backend and frontend.
+2. Open the Review Queue.
+3. Inspect seeded cases and note DLP and contractor context.
+4. Open a case to view repeat-segment history and generated notices.
+5. If the model file is present, upload a new image and verify the inspection is stored with a pipeline status.
+
+## Verification
+
+### Backend tests
 
 ```bash
-python -m tools.download_blr_potholes --limit 25
-python -m tools.download_blr_potholes --force
+.venv\Scripts\python -m pytest api\test_routes.py core inference -q
 ```
 
-Notes:
+### Frontend checks
 
-- The downloader uses GitHub issues as metadata and ImageKit URLs as the image source.
-- Downloaded data is kept separate from the repo's existing `images/` folder used by the smoke test script.
-- If you have a GitHub token available, export `GITHUB_TOKEN` to reduce API rate-limit risk.
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
 
-## Security & Deployment
-Ensure `ARIA_API_KEY` is completely obfuscated prior to production deployment. This service is intended for **Edge Deployment paradigms**: computational inferences run close to the data source (the inspector's device or proxy endpoint) rather than relying on heavy, distant cloud processing.
+## GitHub Automation
+
+This repo includes a GitHub Actions workflow at `.github/workflows/ci.yml` that:
+
+- runs backend tests on Python 3.11
+- installs frontend dependencies with `npm ci`
+- runs frontend typecheck with `npm run lint`
+- runs the production build with `npm run build`
+
+This gives reviewers a visible signal that the project is actively validated.
+
+## Project Quality
+
+- Structured pipeline statuses: `SUCCEEDED`, `NO_DETECTIONS`, `FAILED`
+- Snapshot-based inspection persistence for historical contract accuracy
+- Repeat-segment inspection history for engineer accountability
+- Masked contractor contact in normal API responses
+- Detector label validation against model metadata
+- Type-checked frontend API contract
+- Backend tests for failure handling, pagination totals, masking, and snapshot stability
+
+## Repository Layout
+
+- `api/`: FastAPI app and route handlers
+- `core/`: domain models, severity logic, and PDF generation
+- `db/`: SQLite schema, connection setup, and seed data
+- `frontend/`: React + Vite municipal review console
+- `inference/`: model wrapper, pipeline, and inference tests
+- `tools/`: helper scripts for dataset and model download
+
+## Limitations
+
+- The current product is still image-first rather than full end-of-day video ingestion
+- Engineer decisions are displayed in the UI, but not yet persisted as full workflow actions
+- The model file must be downloaded separately for live detection mode
+- The repository is optimized for local run + CI, not Docker/Codespaces as the primary path
+
+## Roadmap
+
+- persistent engineer decision workflows
+- ingestion-run tracking as a first-class backend concept
+- repair queue for non-DLP cases
+- batch/video ingestion pipeline
+- richer geospatial matching beyond seeded bounding-box segments
+
+## Resume Blurb
+
+You can adapt these bullets directly:
+
+- Built a full-stack civic-tech inspection platform using FastAPI, React, SQLite, and YOLO to automate municipal road-damage triage and contractor accountability workflows.
+- Designed a reliability-focused inspection pipeline with audit-safe snapshot persistence, explicit failure handling, repeat-segment tracking, and authenticated PDF notice delivery.
+- Added automated backend/frontend validation with GitHub Actions and packaged the project for clean demo-mode and full-model local execution from a public GitHub repository.
+
+## Supporting Docs
+
+- Frontend setup: [frontend/README.md](frontend/README.md)
+- Model release note: [docs/model-release.md](docs/model-release.md)
