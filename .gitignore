@@ -9,21 +9,15 @@ __pycache__/
 .pytest_cache/
 .python-runtime/
 .pytest_tmp/
-.yolo-config/
 
 # Local databases and test artifacts
-aria.db
-aria.db-wal
-aria.db-shm
 api-test-*.db
 api-test-*.db-wal
 api-test-*.db-shm
 
 # Generated artifacts
-notices/
-notices_test_output/
-data/uploads/
 frontend/dist/
+runtime/
 
 # Secrets and logs
 .env
@@ -31,4 +25,4 @@ frontend/dist/
 *.log
 
 # Large local assets
-*.pt
+models/*.pt

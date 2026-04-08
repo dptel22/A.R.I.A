@@ -1,8 +1,13 @@
 # A.R.I.A. Frontend
 
-This is the React + Vite municipal review console for A.R.I.A.
+This is the React + Vite municipal review console for A.R.I.A. The source is organized into:
 
-For the full project story, architecture, setup instructions, demo flow, and verification commands, start with the root [`README.md`](../README.md).
+- `src/app/` for the app shell and layout
+- `src/features/` for queue, detail, history, and archive screens
+- `src/shared/api/` for fetch transport, backend contracts, and mappers
+- `src/shared/types/` and `src/shared/lib/` for shared UI contracts and helpers
+
+For the full setup and backend commands, start with the root [`README.md`](../README.md).
 
 ## Frontend Quickstart
 

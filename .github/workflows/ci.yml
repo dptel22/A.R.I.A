@@ -25,7 +25,7 @@ jobs:
           pip install pytest
 
       - name: Run backend test suite
-        run: python -m pytest api/test_routes.py core inference -q
+        run: python -m pytest tests -q
 
   frontend:
     runs-on: ubuntu-latest
