@@ -156,6 +156,11 @@ export default function ReviewQueue({
           <span className={`font-bold ${health?.model_loaded ? 'text-green-700' : 'text-orange-700'}`}>
             {health ? (health.model_loaded ? 'Model ready' : 'Model not loaded') : 'Checking backend...'}
           </span>
+          {!health?.model_loaded && (
+            <span className="ml-2 text-slate-400">
+              Archive review remains available; new uploads require local model weights.
+            </span>
+          )}
         </div>
         <div className="mono-text">Loaded inspections: {cases.length}</div>
       </div>

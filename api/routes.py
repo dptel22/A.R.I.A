@@ -20,8 +20,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import Response
 
 from api.dependencies import get_api_key, get_db
-from core.models import ContractStatus, DetectionMetadata, SeverityLevel
+from core.models import ActionType, ContractStatus, DetectionMetadata, SeverityLevel
 from core.notice_generator import generate_pdf_notice
+from core.severity import determine_action
 from inference.pipeline import PipelineResult, run_pipeline
 
 log: logging.Logger = logging.getLogger(__name__)
@@ -46,12 +47,22 @@ _CONTENT_TYPE_EXTENSIONS: dict[str, str] = {
     "image/png": ".png",
 }
 _SEGMENT_HISTORY_LIMIT: int = 5
+_PUBLIC_TO_CORE_SEVERITY: dict[str, SeverityLevel] = {
+    severity.public_label: severity
+    for severity in SeverityLevel
+}
 
 
 def _build_image_url(image_path: str | None) -> str | None:
     if not image_path:
         return None
     return f"/uploads/{os.path.basename(image_path)}"
+
+
+def _notice_url_for(inspection_id: int, pipeline_status: str, detection_count: int) -> str | None:
+    if pipeline_status == "SUCCEEDED" and detection_count > 0:
+        return f"/api/v1/notices/{inspection_id}"
+    return None
 
 
 def _save_uploaded_image(img_bytes: bytes, content_type: str) -> str:
@@ -130,15 +141,21 @@ def _recommended_action(
 ) -> str:
     if pipeline_status == "FAILED":
         return "Escalate Manual Inspection"
-    if not is_dlp_active:
+    if pipeline_status != "SUCCEEDED" or not is_dlp_active:
         return "No Action"
 
-    return {
-        "CRITICAL": "Block Payment",
-        "HIGH": "Issue Notice",
-        "MEDIUM": "Issue Notice",
-        "LOW": "No Action",
-    }.get(severity_level, "No Action")
+    severity = _PUBLIC_TO_CORE_SEVERITY.get(severity_level)
+    if severity is None:
+        return "No Action"
+
+    action = determine_action(severity)
+    if action == ActionType.LOG_ONLY:
+        return "No Action"
+    if action == ActionType.FLAG_INSPECTOR:
+        return "Issue Notice"
+    if action == ActionType.ENFORCE:
+        return "Block Payment" if severity_level == "CRITICAL" else "Issue Notice"
+    return "No Action"
 
 
 def _parse_dlp_date(dlp_end_date: str | None) -> datetime.date | None:
@@ -176,7 +193,7 @@ def _find_contract(con: sqlite3.Connection, segment_id: int) -> dict[str, Any] |
         SELECT id, contractor_name, contractor_email, dlp_end_date, contract_value
         FROM contracts
         WHERE road_segment_id = ?
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT 1
         """,
         (segment_id,),
@@ -436,7 +453,7 @@ async def detect(
         "image_url": _build_image_url(saved_image_path),
         "contract": contract_payload,
         "recommendation": recommendation,
-        "notice_url": f"/api/v1/notices/{inspection_id}" if detections else None,
+        "notice_url": _notice_url_for(inspection_id, pipeline_result.status, len(detections)),
     }
 
 
@@ -543,6 +560,7 @@ def list_detections(
             pipeline_status,
         )
         item["dlp_status"] = "ACTIVE" if contract_payload["is_dlp_active"] else ("EXPIRED" if contract_payload["contract_id"] else "NONE")
+        item["notice_url"] = _notice_url_for(item["inspection_id"], pipeline_status, item["total_defects"])
         results.append(item)
 
     return {
@@ -591,25 +609,29 @@ def get_detection_detail(
         raise HTTPException(404, f"Inspection event {inspection_id} not found.")
 
     inspection = dict(inspection_row)
-    detection_rows = db.execute(
-        """
-        SELECT
-            id,
-            class_name,
-            confidence,
-            bbox_x,
-            bbox_y,
-            bbox_w,
-            bbox_h,
-            severity_score,
-            severity_level
-        FROM detections
-        WHERE inspection_event_id = ?
-        ORDER BY severity_score DESC, confidence DESC
-        """,
-        (inspection_id,),
-    ).fetchall()
-    detections = [dict(row) for row in detection_rows]
+    detections: list[dict[str, Any]]
+    if inspection["pipeline_status"] == "SUCCEEDED":
+        detection_rows = db.execute(
+            """
+            SELECT
+                id,
+                class_name,
+                confidence,
+                bbox_x,
+                bbox_y,
+                bbox_w,
+                bbox_h,
+                severity_score,
+                severity_level
+            FROM detections
+            WHERE inspection_event_id = ?
+            ORDER BY severity_score DESC, confidence DESC
+            """,
+            (inspection_id,),
+        ).fetchall()
+        detections = [dict(row) for row in detection_rows]
+    else:
+        detections = []
     primary = detections[0] if detections else None
 
     prior_flags_row = db.execute(
@@ -650,10 +672,10 @@ def get_detection_detail(
             bool(history_item["is_dlp_active_snapshot"]),
             history_item["pipeline_status"],
         )
-        history_item["notice_url"] = (
-            f"/api/v1/notices/{history_item['inspection_id']}"
-            if history_item["pipeline_status"] == "SUCCEEDED" and history_item["total_detections"] > 0
-            else None
+        history_item["notice_url"] = _notice_url_for(
+            history_item["inspection_id"],
+            history_item["pipeline_status"],
+            history_item["total_detections"],
         )
         segment_history.append(history_item)
 
@@ -682,7 +704,7 @@ def get_detection_detail(
             contract_payload["is_dlp_active"],
             inspection["pipeline_status"],
         ),
-        "notice_url": f"/api/v1/notices/{inspection_id}" if detections else None,
+        "notice_url": _notice_url_for(inspection_id, inspection["pipeline_status"], len(detections)),
     }
 
 

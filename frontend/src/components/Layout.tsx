@@ -1,15 +1,9 @@
 import React from 'react';
 import {
   Activity,
-  Bell,
-  Construction,
   FileCheck,
-  HelpCircle,
   History,
   LayoutGrid,
-  Search,
-  Settings,
-  User,
 } from 'lucide-react';
 import { AppTab, BackendHealth, NavItem } from '../types';
 
@@ -17,14 +11,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'queue', label: 'Review Queue', icon: LayoutGrid },
   { id: 'detail', label: 'Case Detail', icon: FileCheck },
   { id: 'history', label: 'Decision History', icon: History },
-  { id: 'runs', label: 'Ingestion Runs', icon: Activity },
-  { id: 'repair', label: 'Future Repair Queue', icon: Construction, disabled: true },
+  { id: 'runs', label: 'Archive Summary', icon: Activity },
 ];
 
 const TOP_TABS: Array<{ id: AppTab; label: string }> = [
   { id: 'queue', label: 'Review Operations' },
   { id: 'history', label: 'Decision History' },
-  { id: 'runs', label: 'Ingestion Runs' },
+  { id: 'runs', label: 'Archive Summary' },
 ];
 
 interface LayoutProps {
@@ -50,19 +43,15 @@ export default function Layout({ children, activeTab, setActiveTab, health }: La
             {NAV_ITEMS.map((item) => (
               <li key={item.id}>
                 <button
-                  disabled={item.disabled}
                   onClick={() => setActiveTab(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors text-sm font-medium ${
                     activeTab === item.id
                       ? 'bg-stone-200 text-civic-blue font-bold border-r-2 border-civic-blue'
-                      : item.disabled
-                        ? 'text-slate-400 cursor-not-allowed opacity-50'
-                        : 'text-slate-600 hover:bg-stone-200 hover:text-civic-blue'
+                      : 'text-slate-600 hover:bg-stone-200 hover:text-civic-blue'
                   }`}
                 >
                   <item.icon size={18} />
                   <span>{item.label}</span>
-                  {item.disabled && <span className="ml-auto text-[8px] bg-stone-300 px-1 rounded">SOON</span>}
                 </button>
               </li>
             ))}
@@ -83,11 +72,6 @@ export default function Layout({ children, activeTab, setActiveTab, health }: La
               {health ? (health.model_loaded ? 'Model Ready' : 'Model Offline') : 'Checking'}
             </span>
           </div>
-          <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-civic-blue text-sm transition-colors">
-            <Settings size={16} />
-            <span>Settings</span>
-          </button>
-
           <div className="mt-4 pt-4 border-t border-stone-200 flex items-center gap-3">
             <div className="w-8 h-8 bg-civic-blue rounded-sm flex items-center justify-center text-[10px] text-white font-bold">ME</div>
             <div>
@@ -100,41 +84,28 @@ export default function Layout({ children, activeTab, setActiveTab, health }: La
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3 bg-stone-100 px-3 py-1.5 rounded-sm border border-stone-200">
-              <Search size={16} className="text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search case ID, road, or ward..."
-                className="bg-transparent border-none text-xs focus:ring-0 w-64 text-slate-900 placeholder:text-slate-400"
-                readOnly
-              />
-            </div>
-            <nav className="flex gap-6">
-              {TOP_TABS.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`text-xs font-medium transition-colors ${
-                    activeTopTab === item.id ? 'text-civic-blue font-bold' : 'text-slate-500 hover:text-civic-blue'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+          <nav className="flex gap-6">
+            {TOP_TABS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`text-xs font-medium transition-colors ${
+                  activeTopTab === item.id ? 'text-civic-blue font-bold' : 'text-slate-500 hover:text-civic-blue'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
 
-          <div className="flex items-center gap-4 text-slate-500">
-            <button className="hover:text-civic-blue transition-colors">
-              <Bell size={18} />
-            </button>
-            <button className="hover:text-civic-blue transition-colors">
-              <HelpCircle size={18} />
-            </button>
-            <button className="hover:text-civic-blue transition-colors">
-              <User size={18} />
-            </button>
+          <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest">
+            <span className="rounded-sm border border-stone-200 bg-stone-100 px-2 py-1 text-slate-500">API Protected</span>
+            <span className={`rounded-sm border px-2 py-1 font-bold ${health?.model_loaded ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'}`}>
+              {health?.model_loaded ? 'Model Ready' : 'Archive Only'}
+            </span>
+            <span className="rounded-sm border border-stone-200 bg-stone-100 px-2 py-1 text-slate-500">
+              Version {health?.version || 'N/A'}
+            </span>
           </div>
         </header>
 

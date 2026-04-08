@@ -61,7 +61,7 @@ The frontend is a municipal review dashboard that shows:
 - a prioritized queue of inspections
 - inspection detail with overlays and accountability context
 - decision history with repeat-segment timeline
-- derived ingestion summaries for demo presentation
+- archive-level operational summaries derived from stored inspections
 
 ## Quickstart
 
@@ -123,13 +123,14 @@ The template also includes:
 
 - `ARIA_MODEL_RELEASE_URL`
 
-### 4. Seed the local database
+### 4. Seed demo data
 
 ```bash
 python -m db.seed
 ```
 
 This creates a local SQLite DB with demo road segments, contracts, and seeded inspections.
+The backend also auto-initializes a missing SQLite schema at startup, so seeding is recommended for reviewable demo data rather than required for basic boot.
 
 ### 5. Set up the frontend
 
@@ -157,6 +158,12 @@ From the project root:
 ```bash
 uvicorn api.app:app --reload --port 8000
 ```
+
+The backend will:
+
+- create the SQLite schema if it does not exist yet
+- load the YOLO model if `ARIA_MODEL_PATH` is present
+- keep the archive browsable even when the model is unavailable
 
 ### 7. Start the frontend
 
@@ -268,7 +275,8 @@ This gives reviewers a visible signal that the project is actively validated.
 ## Limitations
 
 - The current product is still image-first rather than full end-of-day video ingestion
-- Engineer decisions are displayed in the UI, but not yet persisted as full workflow actions
+- Persistent engineer decision workflows are not implemented yet
+- The archive summary view is derived from stored inspections, not a first-class ingestion-run backend
 - The model file must be downloaded separately for live detection mode
 - The repository is optimized for local run + CI, not Docker/Codespaces as the primary path
 

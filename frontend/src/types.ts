@@ -9,7 +9,7 @@ export type Decision =
   | 'Issue Notice'
   | 'Block Payment'
   | 'Escalate Manual Inspection';
-export type AppTab = 'queue' | 'detail' | 'history' | 'runs' | 'repair';
+export type AppTab = 'queue' | 'detail' | 'history' | 'runs';
 
 export interface DetectionBox {
   id?: number;
@@ -63,19 +63,6 @@ export interface RoadCase {
   isEnforceable: boolean;
   detections: DetectionBox[];
   segmentHistory: SegmentHistoryItem[];
-}
-
-export interface DerivedRun {
-  id: string;
-  name: string;
-  timestamp: string;
-  status: 'Successful' | 'Processing';
-  inspections: number;
-  detections: number;
-  dlpActiveCases: number;
-  duration: string;
-  region: string;
-  load: number;
 }
 
 export interface BackendHealth {

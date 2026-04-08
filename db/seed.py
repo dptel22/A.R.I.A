@@ -106,19 +106,48 @@ def _upsert_contract(
     dlp_end_date: str,
     contract_value: float | None,
 ) -> int:
-    """Insert contract if (segment, name) pair doesn't exist (DB UNIQUE), return id."""
-    con.execute(
-        """INSERT OR IGNORE INTO contracts
-               (road_segment_id, contractor_name, contractor_email, dlp_end_date, contract_value)
-           VALUES (?, ?, ?, ?, ?)""",
+    """Insert a contract once per exact seed payload, return its id."""
+    row = con.execute(
+        """
+        SELECT id
+        FROM contracts
+        WHERE road_segment_id = ?
+          AND contractor_name = ?
+          AND contractor_email = ?
+          AND dlp_end_date = ?
+          AND (
+                contract_value = ?
+                OR (contract_value IS NULL AND ? IS NULL)
+          )
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (
+            segment_id,
+            contractor_name,
+            contractor_email,
+            dlp_end_date,
+            contract_value,
+            contract_value,
+        ),
+    ).fetchone()
+    if row is not None:
+        return int(row[0])
+
+    cur = con.execute(
+        """
+        INSERT INTO contracts (
+            road_segment_id,
+            contractor_name,
+            contractor_email,
+            dlp_end_date,
+            contract_value
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
         (segment_id, contractor_name, contractor_email, dlp_end_date, contract_value),
     )
-    row = con.execute(
-        "SELECT id FROM contracts WHERE road_segment_id = ? AND contractor_name = ?",
-        (segment_id, contractor_name),
-    ).fetchone()
-    assert row is not None, "contract row must exist after INSERT OR IGNORE"
-    return int(row[0])
+    assert cur.lastrowid is not None, "contract row must exist after insert"
+    return int(cur.lastrowid)
 
 
 def _insert_inspection(
@@ -201,7 +230,7 @@ def seed_db(db_path: str) -> None:
     """
     Insert representative Bengaluru data into the database at *db_path*.
 
-    Segments and contracts are idempotent (INSERT OR IGNORE).
+    Segments and exact contract seed records are idempotent.
     Inspection events and detections are NOT idempotent — to avoid
     duplicate seed data, delete aria.db before re-seeding.
 

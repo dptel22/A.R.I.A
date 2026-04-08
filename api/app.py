@@ -16,6 +16,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from db.schema import init_db
+
 load_dotenv()
 
 log: logging.Logger = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ os.makedirs(_UPLOAD_ROOT, exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load and warm up the YOLO model before accepting requests."""
+    init_db(os.environ.get("ARIA_DB_PATH", "./aria.db"))
     model = None
     if os.path.exists(_MODEL_PATH):
         try:

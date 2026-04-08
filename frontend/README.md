@@ -12,9 +12,11 @@ copy .env.example .env.local
 npm run dev
 ```
 
+The Vite dev server runs on `http://localhost:3000` by default.
+
 Set these variables in `.env.local`:
 
 - `VITE_ARIA_API_URL`
 - `VITE_ARIA_API_KEY`
 
-The frontend expects the FastAPI backend to be running separately.
+The frontend expects the FastAPI backend to be running separately and uses authenticated fetches for queue, detail, upload, and notice access.

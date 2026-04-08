@@ -27,6 +27,7 @@ frontend/dist/
 
 # Secrets and logs
 .env
+.env.local
 *.log
 
 # Large local assets

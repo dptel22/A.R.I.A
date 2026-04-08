@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, FileText, Filter, LoaderCircle, Map as MapIcon, Printer } from 'lucide-react';
+import { ExternalLink, FileText, LoaderCircle, Map as MapIcon, Printer } from 'lucide-react';
 import { openNoticePdf } from '../api';
 import { PipelineStatus, RoadCase } from '../types';
 
@@ -43,6 +43,10 @@ export default function DecisionHistory({ cases, caseDetails, onLoadCaseDetail }
   const historyCases = useMemo(
     () => [...cases].sort((left, right) => new Date(right.created).getTime() - new Date(left.created).getTime()),
     [cases],
+  );
+  const noticeReadyCount = useMemo(
+    () => historyCases.filter((item) => Boolean(item.noticeUrl)).length,
+    [historyCases],
   );
   const [selectedInspectionId, setSelectedInspectionId] = useState<number | null>(historyCases[0]?.inspectionId || null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -105,25 +109,21 @@ export default function DecisionHistory({ cases, caseDetails, onLoadCaseDetail }
                 Audit-ready inspection archive including failed runs, masked contractor context, and repeat segment visibility.
               </p>
             </div>
-            <button className="btn-secondary flex items-center gap-2 text-xs uppercase tracking-wider" disabled>
-              <Download size={14} />
-              Export Audit Log
-            </button>
           </div>
 
-          <div className="surface-base p-3 mb-4 flex items-center gap-3">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-2">
-              <Filter size={12} />
-              Filters
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="surface-base p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Archive Size</div>
+              <div className="mono-text text-lg font-bold text-civic-blue">{historyCases.length}</div>
             </div>
-            <input type="date" className="bg-stone-100 border-stone-200 text-[10px] rounded-sm focus:ring-civic-blue" disabled />
-            <select className="bg-stone-100 border-stone-200 text-[10px] rounded-sm focus:ring-civic-blue" disabled>
-              <option>Recommendation: All</option>
-            </select>
-            <select className="bg-stone-100 border-stone-200 text-[10px] rounded-sm focus:ring-civic-blue" disabled>
-              <option>Contractor: All</option>
-            </select>
-            <button className="ml-auto text-[10px] font-bold text-slate-400 cursor-not-allowed">Workflow actions pending</button>
+            <div className="surface-base p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Notice Ready</div>
+              <div className="mono-text text-lg font-bold text-civic-blue">{noticeReadyCount}</div>
+            </div>
+            <div className="surface-base p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Ordering</div>
+              <div className="text-xs text-slate-600">Newest inspections first</div>
+            </div>
           </div>
         </div>
 

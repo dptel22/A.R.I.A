@@ -9,8 +9,6 @@ import {
   LoaderCircle,
   MapPin,
   ShieldAlert,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import { openNoticePdf } from '../api';
 import { PipelineStatus, RoadCase } from '../types';
@@ -186,15 +184,6 @@ export default function CaseDetail({
                 </div>
               </div>
             </div>
-
-            <div className="absolute bottom-4 right-4 flex flex-col gap-1">
-              <button className="w-8 h-8 bg-white border border-stone-200 flex items-center justify-center rounded-sm hover:bg-stone-50">
-                <ZoomIn size={14} />
-              </button>
-              <button className="w-8 h-8 bg-white border border-stone-200 flex items-center justify-center rounded-sm hover:bg-stone-50">
-                <ZoomOut size={14} />
-              </button>
-            </div>
           </div>
 
           <div className="h-24 bg-stone-100 border-t border-stone-300 flex items-center gap-2 px-4 shrink-0">
@@ -356,46 +345,31 @@ export default function CaseDetail({
             </section>
           </div>
 
-          <div className="mt-auto p-6 bg-stone-50 border-t border-stone-200">
-            <div className="mb-4">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Decision Rationale / Notes</label>
-              <textarea
-                placeholder="Review actions are not yet exposed by the current backend. Use notice export for the live flow."
-                className="w-full h-24 bg-white border-stone-200 rounded-sm text-xs focus:ring-civic-blue p-3"
-                disabled
-              ></textarea>
+          <div className="mt-auto p-6 bg-stone-50 border-t border-stone-200 space-y-4">
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase mb-2">Current Reviewer Workflow</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                This build focuses on inspection review, repeat-segment context, and authenticated notice access. Persistent engineer decision actions are intentionally omitted until the backend supports them end to end.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <button className="btn-secondary text-[10px] uppercase tracking-wider py-3" disabled>
-                No Action
+            {caseData.noticeUrl ? (
+              <button
+                onClick={handleOpenNotice}
+                disabled={openingNotice}
+                className="btn-primary text-[10px] uppercase tracking-wider py-3 flex items-center justify-center gap-2 w-full"
+              >
+                {openingNotice ? <LoaderCircle size={14} className="animate-spin" /> : <ExternalLink size={14} />}
+                {openingNotice ? 'Opening Notice...' : 'Open Notice PDF'}
               </button>
-              <button className="btn-secondary text-[10px] uppercase tracking-wider py-3 flex items-center justify-center gap-2" disabled>
-                <AlertTriangle size={12} />
-                Escalate
-              </button>
-              <button className="btn-warning text-[10px] uppercase tracking-wider py-3 flex items-center justify-center gap-2 col-span-2" disabled>
-                <ShieldAlert size={14} />
-                Block Payment
-              </button>
-              {caseData.noticeUrl ? (
-                <button
-                  onClick={handleOpenNotice}
-                  disabled={openingNotice}
-                  className="btn-primary text-[10px] uppercase tracking-wider py-3 flex items-center justify-center gap-2 col-span-2"
-                >
-                  {openingNotice ? <LoaderCircle size={14} className="animate-spin" /> : <ExternalLink size={14} />}
-                  {openingNotice ? 'Opening Notice...' : 'Issue Notice'}
-                </button>
-              ) : (
-                <button className="btn-primary text-[10px] uppercase tracking-wider py-3 flex items-center justify-center gap-2 col-span-2" disabled>
-                  Issue Notice
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="rounded-sm border border-stone-200 bg-white px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500">
+                No contractor notice is available for this inspection state.
+              </div>
+            )}
 
             <p className="text-[9px] text-slate-400 text-center italic">
-              Live backend integration now logs failed inspections, repeat segment history, and authenticated notice access.
+              Failed inspections, repeat-segment history, and notice availability are sourced from the live backend contract.
             </p>
           </div>
         </div>

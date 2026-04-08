@@ -1,6 +1,6 @@
 import React from 'react';
-import { Activity, ArrowRight, CheckCircle2, Clock, Download, Globe, RefreshCw } from 'lucide-react';
-import { BackendHealth, DerivedRun, RoadCase } from '../types';
+import { Activity, CalendarRange, FileStack, RefreshCw, ShieldCheck } from 'lucide-react';
+import { BackendHealth, RoadCase } from '../types';
 
 interface IngestionRunsProps {
   cases: RoadCase[];
@@ -8,9 +8,22 @@ interface IngestionRunsProps {
   onRefresh: () => Promise<void>;
 }
 
-function deriveRuns(cases: RoadCase[]): DerivedRun[] {
-  const grouped = new Map<string, RoadCase[]>();
+interface DailyArchiveSummary {
+  day: string;
+  inspections: number;
+  detections: number;
+  noticeReady: number;
+  failed: number;
+}
 
+interface SegmentSummary {
+  roadSegment: string;
+  inspections: number;
+  detections: number;
+}
+
+function summarizeByDay(cases: RoadCase[]): DailyArchiveSummary[] {
+  const grouped = new Map<string, RoadCase[]>();
   cases.forEach((item) => {
     const day = item.created.slice(0, 10);
     const bucket = grouped.get(day) || [];
@@ -21,17 +34,30 @@ function deriveRuns(cases: RoadCase[]): DerivedRun[] {
   return Array.from(grouped.entries())
     .sort((left, right) => right[0].localeCompare(left[0]))
     .map(([day, dayCases]) => ({
-      id: `RUN-${day}`,
-      name: 'Derived Inspection Batch',
-      timestamp: `${day} 02:00`,
-      status: 'Successful' as const,
+      day,
       inspections: dayCases.length,
       detections: dayCases.reduce((total, item) => total + item.totalDetections, 0),
-      dlpActiveCases: dayCases.filter((item) => item.dlpStatus === 'Active').length,
-      duration: `${Math.max(1, dayCases.length * 2)}m`,
-      region: dayCases[0]?.zoneId || 'UNKNOWN',
-      load: Math.min(95, Math.max(20, dayCases.length * 12)),
+      noticeReady: dayCases.filter((item) => Boolean(item.noticeUrl)).length,
+      failed: dayCases.filter((item) => item.pipelineStatus === 'FAILED').length,
     }));
+}
+
+function summarizeBySegment(cases: RoadCase[]): SegmentSummary[] {
+  const grouped = new Map<string, SegmentSummary>();
+  cases.forEach((item) => {
+    const current = grouped.get(item.roadSegment) || {
+      roadSegment: item.roadSegment,
+      inspections: 0,
+      detections: 0,
+    };
+    current.inspections += 1;
+    current.detections += item.totalDetections;
+    grouped.set(item.roadSegment, current);
+  });
+
+  return Array.from(grouped.values())
+    .sort((left, right) => right.inspections - left.inspections || right.detections - left.detections)
+    .slice(0, 5);
 }
 
 function buildDailyBars(cases: RoadCase[]) {
@@ -55,17 +81,20 @@ function buildDailyBars(cases: RoadCase[]) {
 }
 
 export default function IngestionRuns({ cases, health, onRefresh }: IngestionRunsProps) {
-  const runs = deriveRuns(cases);
+  const dailySummary = summarizeByDay(cases);
+  const segmentSummary = summarizeBySegment(cases);
   const bars = buildDailyBars(cases);
   const maxBarValue = Math.max(...bars.map((item) => item.value), 1);
+  const noticeReady = cases.filter((item) => Boolean(item.noticeUrl)).length;
+  const failedInspections = cases.filter((item) => item.pipelineStatus === 'FAILED').length;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-civic-blue mb-1">Ingestion Run Overview</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-civic-blue mb-1">Archive Summary</h1>
           <p className="text-slate-500 text-sm">
-            Derived from the current inspection archive until dedicated ingestion-run endpoints are added.
+            This view summarizes stored inspections from the backend archive. A.R.I.A. does not yet expose first-class ingestion run tracking.
           </p>
         </div>
         <button className="btn-primary flex items-center gap-2 text-xs uppercase tracking-wider" onClick={onRefresh}>
@@ -102,12 +131,12 @@ export default function IngestionRuns({ cases, health, onRefresh }: IngestionRun
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Activity size={18} className="text-blue-300" />
-              <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-70">Ingestion Engine</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-70">Backend Readiness</h3>
             </div>
             <div className="text-3xl font-bold mb-1">{health?.status === 'ok' ? 'Operational' : 'Checking'}</div>
             <div className="flex items-center gap-2 text-[10px] font-medium text-blue-200">
               <div className={`w-2 h-2 rounded-full ${health?.model_loaded ? 'bg-green-400 animate-pulse' : 'bg-orange-300'}`}></div>
-              {health?.model_loaded ? 'Detection model ready' : 'Model not loaded'}
+              {health?.model_loaded ? 'Detection model ready' : 'Archive available without model'}
             </div>
           </div>
 
@@ -117,56 +146,65 @@ export default function IngestionRuns({ cases, health, onRefresh }: IngestionRun
               <span className="font-mono font-bold">{health?.version || 'N/A'}</span>
             </div>
             <div className="flex justify-between text-[10px]">
-              <span className="opacity-60">Recent Runs</span>
-              <span className="font-mono font-bold">{runs.length}</span>
+              <span className="opacity-60">Active Days</span>
+              <span className="font-mono font-bold">{dailySummary.length}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Recent Derived Runs</h3>
       <div className="grid grid-cols-3 gap-6 mb-8">
-        {runs.slice(0, 3).map((run) => (
-          <div key={run.id} className="surface-base p-5 border-l-4 border-civic-blue">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <div className="text-[10px] font-mono font-bold text-civic-blue mb-1">{run.id}</div>
-                <div className="text-sm font-bold text-slate-900">{run.name}</div>
-              </div>
-              <span className="badge bg-green-50 text-green-600 border-green-100">{run.status}</span>
-            </div>
+        <div className="surface-base p-5 border-l-4 border-civic-blue">
+          <div className="flex items-center gap-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <FileStack size={14} className="text-civic-blue" />
+            Archive Health
+          </div>
+          <div className="text-3xl font-bold text-civic-blue mb-2">{cases.length}</div>
+          <div className="text-xs text-slate-600">Stored inspections currently available for review.</div>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="surface-base p-5 border-l-4 border-civic-blue">
+          <div className="flex items-center gap-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <ShieldCheck size={14} className="text-civic-blue" />
+            Notice Ready
+          </div>
+          <div className="text-3xl font-bold text-civic-blue mb-2">{noticeReady}</div>
+          <div className="text-xs text-slate-600">Inspections that currently qualify for contractor notice generation.</div>
+        </div>
+
+        <div className="surface-base p-5 border-l-4 border-civic-blue">
+          <div className="flex items-center gap-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <CalendarRange size={14} className="text-civic-blue" />
+            Pipeline Failures
+          </div>
+          <div className="text-3xl font-bold text-civic-blue mb-2">{failedInspections}</div>
+          <div className="text-xs text-slate-600">Logged failures remain visible for manual follow-up.</div>
+        </div>
+      </div>
+
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Daily Archive Groups</h3>
+      <div className="grid grid-cols-3 gap-6 mb-8">
+        {dailySummary.slice(0, 3).map((day) => (
+          <div key={day.day} className="surface-base p-5 border-l-4 border-civic-blue">
+            <div className="text-[10px] font-mono font-bold text-civic-blue mb-1">{day.day}</div>
+            <div className="text-sm font-bold text-slate-900 mb-4">Archive Activity Snapshot</div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="surface-nested p-2">
                 <div className="text-[8px] font-bold text-slate-500 uppercase mb-1">Inspections</div>
-                <div className="text-xs font-mono font-bold">{run.inspections.toLocaleString()}</div>
+                <div className="text-xs font-mono font-bold">{day.inspections}</div>
               </div>
               <div className="surface-nested p-2">
                 <div className="text-[8px] font-bold text-slate-500 uppercase mb-1">Detections</div>
-                <div className="text-xs font-mono font-bold">{run.detections.toLocaleString()}</div>
+                <div className="text-xs font-mono font-bold">{day.detections}</div>
               </div>
               <div className="surface-nested p-2">
-                <div className="text-[8px] font-bold text-slate-500 uppercase mb-1">DLP Active</div>
-                <div className="text-xs font-mono font-bold">{run.dlpActiveCases}</div>
+                <div className="text-[8px] font-bold text-slate-500 uppercase mb-1">Notice Ready</div>
+                <div className="text-xs font-mono font-bold">{day.noticeReady}</div>
               </div>
-              <div className="surface-nested p-2 bg-blue-50 border-blue-100">
-                <div className="text-[8px] font-bold text-blue-600 uppercase mb-1">Region</div>
-                <div className="text-xs font-mono font-bold text-blue-700">{run.region}</div>
+              <div className="surface-nested p-2">
+                <div className="text-[8px] font-bold text-slate-500 uppercase mb-1">Failed</div>
+                <div className="text-xs font-mono font-bold">{day.failed}</div>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t border-stone-100 text-[10px] text-slate-400 font-mono">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Clock size={12} /> {run.timestamp.slice(11)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Activity size={12} /> {run.duration}
-                </span>
-              </div>
-              <span className="text-civic-blue font-bold flex items-center gap-1">
-                View Queue <ArrowRight size={12} />
-              </span>
             </div>
           </div>
         ))}
@@ -174,43 +212,30 @@ export default function IngestionRuns({ cases, health, onRefresh }: IngestionRun
 
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-8 surface-base overflow-hidden">
-          <div className="px-4 py-3 bg-stone-100 border-b border-stone-200 flex justify-between items-center">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Run Logs</h3>
-            <button className="text-[10px] font-bold text-slate-400 flex items-center gap-1" disabled>
-              <Download size={12} /> Export CSV
-            </button>
+          <div className="px-4 py-3 bg-stone-100 border-b border-stone-200">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Most Active Road Segments</h3>
           </div>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="text-[9px] font-bold uppercase text-slate-400 border-b border-stone-100">
-                <th className="px-4 py-2">Identifier</th>
-                <th className="px-4 py-2">Source Region</th>
-                <th className="px-4 py-2">Processing Load</th>
-                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Road Segment</th>
+                <th className="px-4 py-2">Inspections</th>
+                <th className="px-4 py-2">Detections</th>
               </tr>
             </thead>
             <tbody className="text-[10px] font-mono">
-              {runs.length === 0 ? (
+              {segmentSummary.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
                     No archived inspections yet.
                   </td>
                 </tr>
               ) : (
-                runs.map((run) => (
-                  <tr key={run.id} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
-                    <td className="px-4 py-3 font-bold text-civic-blue">{run.id}</td>
-                    <td className="px-4 py-3 text-slate-600">{run.region}</td>
-                    <td className="px-4 py-3">
-                      <div className="w-24 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-civic-blue" style={{ width: `${run.load}%` }}></div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-green-600">
-                        <CheckCircle2 size={10} /> OK
-                      </div>
-                    </td>
+                segmentSummary.map((segment) => (
+                  <tr key={segment.roadSegment} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-civic-blue">{segment.roadSegment}</td>
+                    <td className="px-4 py-3 text-slate-600">{segment.inspections}</td>
+                    <td className="px-4 py-3 text-slate-600">{segment.detections}</td>
                   </tr>
                 ))
               )}
@@ -220,46 +245,19 @@ export default function IngestionRuns({ cases, health, onRefresh }: IngestionRun
 
         <div className="col-span-4 surface-base p-6 flex flex-col">
           <div className="flex items-center gap-2 mb-4">
-            <Globe size={14} className="text-civic-blue" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Source Coverage</h3>
+            <Activity size={14} className="text-civic-blue" />
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">View Scope</h3>
           </div>
-          <div className="flex-1 bg-stone-200 rounded-sm relative overflow-hidden min-h-[200px]">
-            <div className="grid-bg absolute inset-0"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative">
-                <div className="w-32 h-32 border-2 border-civic-blue/20 rounded-full absolute -inset-0"></div>
-                <div className="w-32 h-32 bg-civic-blue/5 rounded-full border border-civic-blue/30 flex items-center justify-center">
-                  <div className="text-xs font-bold text-civic-blue uppercase">{cases[0]?.zoneId || 'No data'}</div>
-                </div>
-              </div>
-            </div>
-            <div className="absolute bottom-3 left-3 bg-white/80 p-2 rounded-sm text-[8px] font-bold uppercase border border-stone-200">
-              Derived from stored inspection coordinates
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 surface-base p-6 bg-slate-900 text-blue-100 rounded-sm font-mono text-[10px]">
-        <div className="flex items-center gap-2 mb-4 opacity-50">
-          <Activity size={12} />
-          <span className="uppercase tracking-widest font-bold">Engine Log Stream</span>
-        </div>
-        <div className="space-y-1">
-          <div>
-            <span className="text-blue-400">[LIVE]</span> Backend health endpoint reports status{' '}
-            <span className="font-bold">{health?.status || 'unknown'}</span>.
-          </div>
-          <div>
-            <span className="text-blue-400">[MODEL]</span> Detection model{' '}
-            <span className="font-bold">{health?.model_loaded ? 'available' : 'not loaded'}</span>.
-          </div>
-          <div>
-            <span className="text-blue-400">[QUEUE]</span> Stored inspections in archive: {cases.length}.
-          </div>
-          <div>
-            <span className="text-blue-400">[CASES]</span> Total detected defects across archive:{' '}
-            {cases.reduce((total, item) => total + item.totalDetections, 0)}.
+          <div className="surface-nested p-4 text-xs text-slate-600 leading-relaxed flex-1">
+            <p className="mb-3">
+              This tab intentionally summarizes stored inspections instead of pretending there is a backend ingestion-run system.
+            </p>
+            <p className="mb-3">
+              Use it to sanity-check archive volume, notice-ready cases, and segment concentration while the project remains image-first.
+            </p>
+            <p className="text-slate-500">
+              A future backend release can replace this summary with first-class ingestion entities without changing the rest of the review console.
+            </p>
           </div>
         </div>
       </div>

@@ -44,6 +44,7 @@ interface BackendSummaryRow {
   pipeline_status: PipelineStatus;
   failure_reason: string | null;
   prior_flags: number;
+  notice_url: string | null;
 }
 
 interface BackendSummaryResponse {
@@ -329,7 +330,7 @@ function fromSummary(row: BackendSummaryRow): RoadCase {
     runId: toRunId(row.timestamp),
     priorFlags: row.prior_flags,
     totalDetections: row.total_defects,
-    noticeUrl: row.pipeline_status === 'SUCCEEDED' && row.total_defects > 0 ? `/api/v1/notices/${row.inspection_id}` : null,
+    noticeUrl: row.notice_url,
     isEnforceable: row.is_dlp_active,
     detections: [],
     segmentHistory: [],
