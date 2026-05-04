@@ -11,6 +11,14 @@ from typing import Any
 
 import numpy as np
 
+_RDD_TO_ARIA: dict[str, str] = {
+    "D00": "longitudinal_crack",
+    "D10": "transverse_crack",
+    "D20": "alligator_crack",
+    "D40": "pothole",
+    "D44": "pothole",
+}
+
 log: logging.Logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -49,6 +57,7 @@ def _resolve_class_names(model: Any) -> dict[int, str]:
     else:
         raise ValueError(f"Unsupported YOLO model.names metadata type: {type(model_names)!r}")
 
+    class_names = {cid: _RDD_TO_ARIA.get(name, name) for cid, name in class_names.items()}
     available = set(class_names.values())
     missing = EXPECTED_CLASS_NAMES - available
     if missing:

@@ -55,7 +55,7 @@ def _notice_url_for(inspection_id: int, pipeline_status: str, detection_count: i
 def _save_uploaded_image(img_bytes: bytes, content_type: str) -> str:
     os.makedirs(_UPLOAD_DIR, exist_ok=True)
     extension = _CONTENT_TYPE_EXTENSIONS.get(content_type, ".bin")
-    filename = f"{datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')}_{uuid.uuid4().hex}{extension}"
+    filename = f"{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S')}_{uuid.uuid4().hex}{extension}"
     output_path = os.path.join(_UPLOAD_DIR, filename)
     with open(output_path, "wb") as handle:
         handle.write(img_bytes)
@@ -160,14 +160,16 @@ def _find_segment(con: sqlite3.Connection, lat: float, lng: float) -> dict[str, 
         """
         SELECT id, name, ward_id, zone_id
         FROM road_segments
-        WHERE ? BETWEEN gps_min_lat - ? AND gps_max_lat + ?
-          AND ? BETWEEN gps_min_lon - ? AND gps_max_lon + ?
+        WHERE gps_min_lat <= ?
+          AND gps_max_lat >= ?
+          AND gps_min_lon <= ?
+          AND gps_max_lon >= ?
         ORDER BY
             ABS(((gps_min_lat + gps_max_lat) / 2.0) - ?)
             + ABS(((gps_min_lon + gps_max_lon) / 2.0) - ?) ASC
         LIMIT 1
         """,
-        (lat, _LAT_DELTA, _LAT_DELTA, lng, _LNG_DELTA, _LNG_DELTA, lat, lng),
+        (lat + _LAT_DELTA, lat - _LAT_DELTA, lng + _LNG_DELTA, lng - _LNG_DELTA, lat, lng),
     ).fetchone()
     return dict(row) if row else None
 
@@ -234,7 +236,8 @@ def _insert_inspection_event(
             contract_snapshot["is_dlp_active_snapshot"],
         ),
     )
-    assert cur.lastrowid is not None
+    if cur.lastrowid is None:
+        raise RuntimeError("INSERT returned no lastrowid")
     return int(cur.lastrowid)
 
 
