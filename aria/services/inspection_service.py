@@ -46,6 +46,23 @@ def _build_image_url(image_path: str | None) -> str | None:
     return f"/uploads/{os.path.basename(image_path)}" if image_path else None
 
 
+
+from pathlib import Path as _Path  # noqa: E402
+
+
+def _safe_image_path(image_path, upload_dir=_UPLOAD_DIR):
+    """Validate image_path stays within upload_dir. Returns None if invalid."""
+    if not image_path:
+        return None
+    try:
+        resolved = _Path(image_path).resolve()
+        resolved.relative_to(_Path(upload_dir).resolve())
+        return str(resolved)
+    except (ValueError, OSError):
+        log.warning("Path traversal attempt or invalid path rejected: %s", image_path)
+        return None
+
+
 def _notice_url_for(inspection_id: int, pipeline_status: str, detection_count: int) -> str | None:
     if pipeline_status == "SUCCEEDED" and detection_count > 0:
         return f"/api/v1/notices/{inspection_id}"
@@ -697,7 +714,11 @@ def get_notice_context(*, db: sqlite3.Connection, inspection_id: int) -> tuple[d
     inspection = dict(inspection_row)
     image_path = inspection.get("image_path")
     if image_path and not os.path.isabs(image_path):
-        inspection["image_path"] = os.path.join(_UPLOAD_DIR, image_path)
+        image_path = os.path.join(_UPLOAD_DIR, image_path)
+    image_path = _safe_image_path(image_path)
+    if image_path is None and inspection.get("image_path"):
+        log.warning("Image path rejected for inspection %s — treating as no image.", inspection_id)
+    inspection["image_path"] = image_path
     if inspection["pipeline_status"] != "SUCCEEDED":
         raise HTTPException(404, f"Inspection event {inspection_id} does not have a noticeable detection result.")
 
