@@ -13,19 +13,8 @@ router = APIRouter()
 _MAX_FILE_SIZE: int = 10 * 1024 * 1024
 
 
-async def _read_upload_bytes(file: UploadFile) -> bytes:
-    chunks: list[bytes] = []
-    total_size = 0
-    while part := await file.read(1024 * 1024):
-        total_size += len(part)
-        if total_size > _MAX_FILE_SIZE:
-            inspection_service.raise_file_too_large(_MAX_FILE_SIZE)
-        chunks.append(part)
-    return b"".join(chunks)
-
-
 @router.post("/detect")
-async def detect(
+def detect(
     request: Request,
     file: UploadFile = File(...),
     lat: float = Form(...),
@@ -33,7 +22,9 @@ async def detect(
     _key: str = Depends(get_api_key),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
-    img_bytes = await _read_upload_bytes(file)
+    img_bytes = file.file.read(_MAX_FILE_SIZE + 1)
+    if len(img_bytes) > _MAX_FILE_SIZE:
+        inspection_service.raise_file_too_large(_MAX_FILE_SIZE)
     return inspection_service.process_detection(
         db=db,
         model=request.app.state.model,

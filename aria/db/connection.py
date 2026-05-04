@@ -43,6 +43,7 @@ def get_connection(db_path: str) -> sqlite3.Connection:
                 "(e.g. some NFS mounts). Cannot guarantee safe concurrent access."
             )
         con.execute("PRAGMA foreign_keys = ON")
+        con.execute("PRAGMA busy_timeout = 5000")
     except Exception:
         con.close()
         raise
