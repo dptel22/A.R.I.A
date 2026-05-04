@@ -673,6 +673,7 @@ def get_notice_context(*, db: sqlite3.Connection, inspection_id: int) -> tuple[d
             ie.created_at,
             ie.lat,
             ie.lng,
+            ie.image_path,
             ie.segment_id,
             ie.pipeline_status,
             ie.contract_id_snapshot,
@@ -694,6 +695,9 @@ def get_notice_context(*, db: sqlite3.Connection, inspection_id: int) -> tuple[d
         raise HTTPException(404, f"Inspection event {inspection_id} not found.")
 
     inspection = dict(inspection_row)
+    image_path = inspection.get("image_path")
+    if image_path and not os.path.isabs(image_path):
+        inspection["image_path"] = os.path.join(_UPLOAD_DIR, image_path)
     if inspection["pipeline_status"] != "SUCCEEDED":
         raise HTTPException(404, f"Inspection event {inspection_id} does not have a noticeable detection result.")
 

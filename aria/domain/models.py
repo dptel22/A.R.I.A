@@ -34,6 +34,7 @@ class DetectionMetadata:
     gps_lon: float
     severity: SeverityLevel
     confidence: float = 0.0
+    image_path: str | None = None
 
 
 @dataclass(frozen=True)

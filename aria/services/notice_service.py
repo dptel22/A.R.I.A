@@ -18,6 +18,13 @@ from aria.domain.models import ContractStatus, DetectionMetadata, SeverityLevel
 log: logging.Logger = logging.getLogger(__name__)
 
 
+def _subtract_36_months(value: datetime.date) -> datetime.date:
+    try:
+        return value.replace(year=value.year - 3)
+    except ValueError:
+        return value.replace(year=value.year - 3, day=28)
+
+
 def generate_pdf_notice(
     detection_data: DetectionMetadata,
     contract_data: ContractStatus,
@@ -57,11 +64,11 @@ def generate_pdf_notice(
         current_y = height - margins
 
         c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width / 2.0, current_y, "GREATER BENGALURU AUTHORITY (GBA)")
+        c.drawCentredString(width / 2.0, current_y, "BRUHAT BENGALURU MAHANAGARA PALIKE (BBMP)")
         current_y -= 0.3 * inch
 
         c.setFont("Helvetica", 12)
-        c.drawCentredString(width / 2.0, current_y, "Office of the Executive Engineer, East Zone City Corporation")
+        c.drawCentredString(width / 2.0, current_y, "Office of the Executive Engineer — Roads & Infrastructure, East Division")
         current_y -= 0.4 * inch
         c.line(margins, current_y, width - margins, current_y)
         current_y -= 0.5 * inch
@@ -85,9 +92,29 @@ def generate_pdf_notice(
         current_y -= 0.6 * inch
 
         c.setFont("Helvetica-Bold", 11)
-        subject = "SUBJECT: Mandatory rectification of road defects under active Defect Liability Period (DLP)."
+        subject = "SUBJECT: Mandatory Rectification of Road Defects Detected under Defect Liability Period (DLP) — Ref: Agreement Clause 32.1, SBD."
         for line in textwrap.wrap(subject, width=80):
             c.drawString(margins, current_y, line)
+            current_y -= 0.2 * inch
+
+        completion_certificate_date = (
+            _subtract_36_months(contract_data.dlp_end_date)
+            if contract_data.dlp_end_date
+            else None
+        )
+        current_y -= 0.1 * inch
+
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(margins, current_y, "REF:")
+        current_y -= 0.2 * inch
+
+        c.setFont("Helvetica", 11)
+        for line in [
+            f"- Agreement No: {contract_data.contract_id}",
+            f"- Completion Certificate Date: {completion_certificate_date if completion_certificate_date else 'On record'}",
+            f"- A.R.I.A Inspection Report ID: {timestamp_ref}",
+        ]:
+            c.drawString(margins + 0.3 * inch, current_y, line)
             current_y -= 0.2 * inch
         current_y -= 0.3 * inch
 
@@ -118,6 +145,19 @@ def generate_pdf_notice(
 
         if contract_data.is_dlp_active:
             c.setFont("Helvetica-Bold", 11)
+            c.drawString(margins, current_y, "YOU ARE HEREBY DIRECTED TO:")
+            current_y -= 0.2 * inch
+            c.setFont("Helvetica", 11)
+            for line in [
+                "1. Initiate repair works within 48 hours of this notice.",
+                "2. Complete restoration as per MORTH/IRC specifications within 7 days.",
+                "3. Notify this office upon completion for follow-up inspection.",
+            ]:
+                c.drawString(margins, current_y, line)
+                current_y -= 0.2 * inch
+            current_y -= 0.2 * inch
+
+            c.setFont("Helvetica-Bold", 11)
             for line in [
                 "ACTION REQUIRED:",
                 "Failure to comply within 7 days will result in the GBA executing repairs departmentally.",
@@ -139,9 +179,31 @@ def generate_pdf_notice(
             current_y = height - margins
 
         current_y -= image_box_height
-        c.rect(margins, current_y, image_box_width, image_box_height)
-        c.setFont("Helvetica-Oblique", 10)
-        c.drawCentredString(width / 2.0, current_y + (image_box_height / 2.0) - 4, "[ EVIDENCE IMAGE PLACEHOLDER ]")
+        img_path = getattr(detection_data, "image_path", None)
+        if img_path and os.path.isfile(img_path):
+            try:
+                from reportlab.lib.utils import ImageReader
+
+                c.drawImage(
+                    ImageReader(img_path),
+                    margins, current_y,
+                    width=image_box_width,
+                    height=image_box_height,
+                    preserveAspectRatio=True,
+                    anchor="c",
+                    mask="auto",
+                )
+                c.setFont("Helvetica", 8)
+                c.drawString(margins, current_y - 0.15 * inch, f"Evidence: {os.path.basename(img_path)}")
+            except Exception as img_err:
+                log.warning("Could not embed image %s: %s", img_path, img_err)
+                c.rect(margins, current_y, image_box_width, image_box_height)
+                c.setFont("Helvetica-Oblique", 10)
+                c.drawCentredString(width / 2.0, current_y + (image_box_height / 2.0) - 4, f"[Image unavailable: {os.path.basename(img_path)}]")
+        else:
+            c.rect(margins, current_y, image_box_width, image_box_height)
+            c.setFont("Helvetica-Oblique", 10)
+            c.drawCentredString(width / 2.0, current_y + (image_box_height / 2.0) - 4, "[ No evidence image recorded ]")
 
         current_y -= 0.5 * inch
         c.setFont("Helvetica", 11)
@@ -190,6 +252,7 @@ def build_notice_pdf(inspection: dict[str, Any], detections: list[dict[str, Any]
         gps_lon=inspection["lng"],
         severity=severity_map.get(primary["severity_level"], SeverityLevel.HIGH),
         confidence=primary["confidence"],
+        image_path=inspection.get("image_path"),
     )
 
     dlp_end_date = _parse_dlp_date(inspection.get("dlp_end_date_snapshot"))
