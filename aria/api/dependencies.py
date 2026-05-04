@@ -26,7 +26,7 @@ _API_KEY: str = os.environ.get("ARIA_API_KEY", "")
 _DB_PATH: str = os.environ.get("ARIA_DB_PATH", "./runtime/db/aria.db")
 
 
-def get_api_key(x_api_key: str = Header(default=None)) -> str:
+def get_api_key(x_api_key: str | None = Header(default=None)) -> str:
     if not _API_KEY:
         raise HTTPException(503, "API key not configured on this server.")
     if not x_api_key:

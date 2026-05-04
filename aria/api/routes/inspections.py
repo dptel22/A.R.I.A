@@ -22,7 +22,7 @@ def detect(
     _key: str = Depends(get_api_key),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
-    img_bytes = file.file.read()
+    img_bytes = file.file.read(_MAX_FILE_SIZE + 1)
     if len(img_bytes) > _MAX_FILE_SIZE:
         inspection_service.raise_file_too_large(_MAX_FILE_SIZE)
     return inspection_service.process_detection(
