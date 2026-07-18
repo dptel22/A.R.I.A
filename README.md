@@ -59,6 +59,14 @@ A.R.I.A. is a full-stack inspection platform that:
 
 ---
 
+## 🔍 Scope & Limitations
+
+A.R.I.A. is specifically optimized for **vehicle-mounted systematic sweeps** (dashcam/road-level cameras).
+- **Intended Input:** Windshield or bumper-level footage taken at driving distance. Defects typically occupy ~2–8% of the frame, surrounded by road-edge and lane-marking context.
+- **Out-of-Scope (v1 Model):** Ad-hoc citizen phone photos (extreme close-ups where a pothole fills 40–90% of the frame). The current model's feature representation is not trained on close-up framing, causing raw confidence to collapse. Generalization to this domain requires a separate Stage 3 training dataset with scale-augmentation.
+
+---
+
 ## System Architecture
 
 ```
@@ -180,7 +188,7 @@ Key `.env` defaults:
 
 ```
 ARIA_DB_PATH=./runtime/db/aria.db
-ARIA_MODEL_PATH=./models/aria_stage1.pt
+ARIA_MODEL_PATH=./models/aria_best_v1.pt
 ARIA_UPLOAD_DIR=./runtime/uploads
 ```
 
@@ -263,7 +271,7 @@ Download model weights from the latest GitHub Release:
 python -m scripts.download_model
 ```
 
-Default target: `./models/aria_stage1.pt`
+Default target: `./models/aria_best_v1.pt`
 
 See: [docs/setup/model-release.md](docs/setup/model-release.md)
 

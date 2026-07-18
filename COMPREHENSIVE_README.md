@@ -48,7 +48,7 @@ A.R.I.A/
 │  └─ setup/              # Setup instructions
 ├─ experiments/           # Jupyter notebooks for data exploration and model training
 ├─ runtime/               # (Git Ignored) Local SQLite DB, uploaded images, generated PDFs
-└─ models/                # (Git Ignored) Local ML model weights (e.g., aria_stage1.pt)
+└─ models/                # (Git Ignored) Local ML model weights (e.g., aria_best_v1.pt)
 ```
 
 **Key Files & Roles:**
@@ -75,7 +75,7 @@ A.R.I.A/
 
 *   **Model Used:** Ultralytics YOLO (You Only Look Once) object detection model.
 *   **Training & Data:** Trained to detect road surface degradation. The specific training pipeline is in the `experiments/` notebooks. It heavily leverages public datasets, notably the `blr-potholes-data` dataset.
-*   **Storage:** Weights are NOT committed to Git to keep the repo small. They are stored as a GitHub Release asset (`aria_stage1.pt`). The `scripts/download_model.py` script downloads it to `./models/aria_stage1.pt`.
+*   **Storage:** Weights are NOT committed to Git to keep the repo small. They are stored as a GitHub Release asset (`aria_best_v1.pt`). The `scripts/download_model.py` script downloads it to `./models/aria_best_v1.pt`.
 *   **Defect Classes Detected:**
     1.  `longitudinal_crack`
     2.  `transverse_crack`
@@ -133,7 +133,7 @@ curl -X POST "http://localhost:8000/api/v1/detect" \
 
 **Debugging 0.0% Confidence:**
 If the model returns an empty array or extremely low confidence:
-1.  **Check Model Load:** Look at the FastAPI startup logs. Did it say "Loading YOLO model from ./models/aria_stage1.pt" or "Model file not found"?
+1.  **Check Model Load:** Look at the FastAPI startup logs. Did it say "Loading YOLO model from ./models/aria_best_v1.pt" or "Model file not found"?
 2.  **Check Image Format:** Ensure the file is actually a valid JPEG/PNG, not a corrupted file or WebP (the frontend currently posts everything as `image/jpeg` regardless of true type, a known P2 bug).
 3.  **Check Image Content:** Is the pothole visible and clear? YOLO struggles with blurry images or extreme angles.
 4.  **Review `inference/detector.py`:** The `CONF_THRESHOLD` is hardcoded to `0.25`. Anything below 25% confidence is silently dropped.
@@ -184,7 +184,7 @@ In the SQLite database, inspections have standard auto-incrementing integer IDs 
 1.  Ensure Python 3.10+ and Node.js 18+ are installed.
 2.  Set environment variables globally or in `/etc/environment`:
     *   `ARIA_DB_PATH=/var/lib/aria/aria.db`
-    *   `ARIA_MODEL_PATH=/opt/aria/models/aria_stage1.pt`
+    *   `ARIA_MODEL_PATH=/opt/aria/models/aria_best_v1.pt`
     *   `ARIA_UPLOAD_DIR=/var/www/aria/uploads`
 3.  Run the backend as a Systemd service using `gunicorn` with `uvicorn.workers.UvicornWorker`.
 4.  Build the frontend (`npm run build`) and serve the `dist/` directory via Nginx, proxying `/api` requests to the Uvicorn port.

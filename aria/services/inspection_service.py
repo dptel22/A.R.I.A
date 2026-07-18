@@ -366,10 +366,10 @@ def process_detection(
         raise HTTPException(
             404,
             {
-                "detail": "No GBA road segment found within tolerance of these coordinates.",
+                "detail": "No mapped road segment found at these coordinates.",
                 "lat": lat,
                 "lng": lng,
-                "suggestion": "Verify GPS signal and retry outdoors.",
+                "suggestion": "This location is not in the road-segment database. Contact your administrator to add coverage for this area.",
             },
         )
 

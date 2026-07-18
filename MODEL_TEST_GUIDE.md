@@ -8,7 +8,7 @@ Before testing, ensure the model weights are downloaded and the backend is runni
 
 1.  **Download Weights:**
     ```bash
-    # Run from the project root. This downloads aria_stage1.pt to ./models/
+    # Run from the project root. This downloads aria_best_v1.pt to ./models/
     python -m scripts.download_model
     ```
 2.  **Seed the Database (Optional but recommended for contract matching):**
@@ -20,7 +20,7 @@ Before testing, ensure the model weights are downloaded and the backend is runni
     uvicorn aria.api.app:app --reload --port 8000
     ```
     *Look at the startup logs.* You must see:
-    `INFO: aria.api.app: Loading YOLO model from ./models/aria_stage1.pt ...`
+    `INFO: aria.api.app: Loading YOLO model from ./models/aria_best_v1.pt ...`
     `INFO: aria.api.app: Model loaded and warmed up. Ready.`
 
 ## 2. Acquiring Sample Images
@@ -126,7 +126,7 @@ YOLO models are highly sensitive to:
 ## 5. Summary Workflow for AI Agents
 
 To verify the model is operational autonomously:
-1. `ls ./models/aria_stage1.pt` (Verify weights exist).
+1. `ls ./models/aria_best_v1.pt` (Verify weights exist).
 2. `curl http://localhost:8000/health` (Verify API is up).
 3. Use a known good base64 string or local file to `POST /api/v1/detect`.
 4. Parse the JSON response. Assert `pipeline_status == "SUCCEEDED"`.
