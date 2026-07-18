@@ -16,9 +16,9 @@ from urllib.request import urlopen
 
 DEFAULT_MODEL_URL = os.environ.get(
     "ARIA_MODEL_RELEASE_URL",
-    "https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_best_v1.pt",
+    "https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_stage1.pt",
 )
-DEFAULT_OUTPUT = Path(os.environ.get("ARIA_MODEL_PATH", "./models/aria_best_v1.pt"))
+DEFAULT_OUTPUT = Path(os.environ.get("ARIA_MODEL_PATH", "./models/aria_stage1.pt"))
 CHUNK_SIZE = 1024 * 1024
 
 

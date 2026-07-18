@@ -23,7 +23,7 @@ load_dotenv()
 
 log: logging.Logger = logging.getLogger(__name__)
 
-_MODEL_PATH: str = os.environ.get("ARIA_MODEL_PATH", "./models/aria_best_v1.pt")
+_MODEL_PATH: str = os.environ.get("ARIA_MODEL_PATH", "./models/aria_stage1.pt")
 _UPLOAD_ROOT: str = os.environ.get("ARIA_UPLOAD_DIR", "./runtime/uploads")
 _DB_PATH: str = os.environ.get("ARIA_DB_PATH", "./runtime/db/aria.db")
 _ALLOWED_ORIGINS: list[str] = [

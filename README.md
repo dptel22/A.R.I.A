@@ -225,7 +225,7 @@ VITE_ARIA_API_URL=http://localhost:8000
 VITE_ARIA_API_KEY=<same value as ARIA_API_KEY in .env>
 ```
 
-Open: [http://localhost:5173](http://localhost:5173)
+Open: [http://localhost:3000](http://localhost:3000)
 
 ---
 
@@ -305,7 +305,7 @@ npm run build
 | Model not loading | Run in Demo Mode; download weights with `python -m scripts.download_model` |
 | DB not found | Run `python -m aria.db.seed` to initialize the SQLite database |
 | Frontend 401 errors | Ensure `VITE_ARIA_API_KEY` matches `ARIA_API_KEY` in backend `.env` |
-| Port already in use | Kill existing process on port 8000 or 5173 and restart |
+| Port already in use | Kill existing process on port 8000 or 3000 and restart |
 | CI badge failing | Check [Actions tab](https://github.com/dptel22/A.R.I.A/actions) for failing test details |
 
 ---

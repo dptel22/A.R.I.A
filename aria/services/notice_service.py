@@ -17,6 +17,40 @@ from aria.domain.models import ContractStatus, DetectionMetadata, SeverityLevel
 
 log: logging.Logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Authority configuration
+# ---------------------------------------------------------------------------
+# BBMP was dissolved on 2 September 2025 and replaced by the Greater Bengaluru
+# Authority (GBA) as the apex body, overseeing five new city corporations:
+#   Bengaluru North, Bengaluru South, Bengaluru East, Bengaluru West, Bengaluru Central
+# Ref: Greater Bengaluru Governance Act, 2024; BBMP dissolution gazette 02-09-2025
+#
+# All authority strings are configurable here (and via env vars) so that the
+# correct corporation can be set per deployment/demo without touching code.
+# ---------------------------------------------------------------------------
+
+# Apex body (always GBA since Sept 2025)
+_APEX_AUTHORITY: str = os.environ.get(
+    "ARIA_APEX_AUTHORITY",
+    "Greater Bengaluru Authority (GBA)",
+)
+
+# The specific city corporation handling the contract zone.
+# Override via env var or pass explicitly — must be one of:
+#   Bengaluru North Corporation | Bengaluru South Corporation
+#   Bengaluru East Corporation  | Bengaluru West Corporation
+#   Bengaluru Central Corporation
+_DEFAULT_CORPORATION: str = os.environ.get(
+    "ARIA_CORPORATION_NAME",
+    "Bengaluru South Corporation",
+)
+
+# Division/department label within the corporation.
+_DEFAULT_DIVISION: str = os.environ.get(
+    "ARIA_DIVISION_NAME",
+    "Roads & Infrastructure Division",
+)
+
 # Standard DLP duration per Karnataka PWD SBD Clause 32.1 (36 months from completion)
 # Ref: GO_PWD203BMSdated13-08-2025 — configurable per contract if needed
 _DEFAULT_DLP_MONTHS: int = 36
@@ -46,7 +80,30 @@ def generate_pdf_notice(
     contract_data: ContractStatus,
     output_dir: str | None = None,
     buffer: io.BytesIO | None = None,
+    corporation_name: str | None = None,
+    division_name: str | None = None,
 ) -> str:
+    """Generate a PDF enforcement notice.
+
+    Parameters
+    ----------
+    detection_data:
+        GPS location, severity, and confidence from the A.R.I.A. inference run.
+    contract_data:
+        Contractor and DLP details for the affected road segment.
+    output_dir:
+        Directory to write the PDF to.  Ignored when *buffer* is supplied.
+    buffer:
+        If provided, the PDF bytes are written here instead of a file.
+    corporation_name:
+        City corporation responsible for this zone, e.g. "Bengaluru East Corporation".
+        Defaults to the ``ARIA_CORPORATION_NAME`` env var or :data:`_DEFAULT_CORPORATION`.
+    division_name:
+        Department within the corporation, e.g. "Roads & Infrastructure Division".
+        Defaults to the ``ARIA_DIVISION_NAME`` env var or :data:`_DEFAULT_DIVISION`.
+    """
+    corp = corporation_name or _DEFAULT_CORPORATION
+    div = division_name or _DEFAULT_DIVISION
     if buffer is not None:
         pdf_target: str | io.BytesIO = buffer
         pdf_path = "IN_MEMORY"
@@ -73,18 +130,24 @@ def generate_pdf_notice(
 
     timestamp_ref = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # Derive a short corporation slug for the reference number
+    # e.g. "Bengaluru South Corporation" -> "South"
+    corp_slug = corp.replace("Bengaluru ", "").replace(" Corporation", "").replace(" ", "-")[:10]
+
     try:
         c = canvas.Canvas(pdf_target, pagesize=A4)
         width, height = A4
         margins = 1.0 * inch
         current_y = height - margins
 
+        # --- Letterhead: Apex authority (GBA) ---
         c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width / 2.0, current_y, "BRUHAT BENGALURU MAHANAGARA PALIKE (BBMP)")
+        c.drawCentredString(width / 2.0, current_y, _APEX_AUTHORITY)
         current_y -= 0.3 * inch
 
+        # --- Sub-header: Corporation + Division ---
         c.setFont("Helvetica", 12)
-        c.drawCentredString(width / 2.0, current_y, "Office of the Executive Engineer — Roads & Infrastructure, East Division")
+        c.drawCentredString(width / 2.0, current_y, f"{corp} — {div}")
         current_y -= 0.4 * inch
         c.line(margins, current_y, width - margins, current_y)
         current_y -= 0.5 * inch
@@ -92,7 +155,7 @@ def generate_pdf_notice(
         c.setFont("Helvetica", 11)
         generation_date = datetime.datetime.now().strftime("%d %B %Y")
         c.drawString(margins, current_y, f"Date: {generation_date}")
-        c.drawRightString(width - margins, current_y, f"Ref: BBMP/EE/Z-East/ARIA/{timestamp_ref}")
+        c.drawRightString(width - margins, current_y, f"Ref: GBA/{corp_slug}/ARIA/{timestamp_ref}")
         current_y -= 0.6 * inch
 
         c.setFont("Helvetica-Bold", 11)
@@ -225,9 +288,12 @@ def generate_pdf_notice(
         c.setFont("Helvetica", 11)
         c.drawString(margins, current_y, "Yours faithfully,")
         current_y -= 0.6 * inch
-        c.drawString(margins, current_y, "Executive Engineer (East Zone)")
+        c.drawString(margins, current_y, f"Commissioner / Executive Engineer — {div}")
         current_y -= 0.2 * inch
-        c.drawString(margins, current_y, "Bruhat Bengaluru Mahanagara Palike (BBMP)")
+        c.drawString(margins, current_y, corp)
+        current_y -= 0.15 * inch
+        c.setFont("Helvetica", 9)
+        c.drawString(margins, current_y, f"(Under the jurisdiction of {_APEX_AUTHORITY})")
 
         c.setFont("Helvetica", 9)
         c.drawCentredString(width / 2.0, 0.75 * inch, "Digitally generated by A.R.I.A. Edge Inspection System - No wet signature required.")
