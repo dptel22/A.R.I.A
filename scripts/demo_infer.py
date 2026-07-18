@@ -1,6 +1,7 @@
 """Run preprocessed YOLO inference on BLR potholes demo images."""
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import cv2
@@ -10,9 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 IMAGES_DIR = ROOT / "data" / "demo" / "blr_potholes" / "images"
 PREDICTIONS_DIR = ROOT / "data" / "demo" / "blr_potholes" / "predictions"
 MODEL_CANDIDATES = (
+    ROOT / "aria" / "models" / "aria_best_v1.pt",
+    ROOT / "models" / "aria_best_v1.pt",
+    ROOT / "aria_best_v1.pt",
     ROOT / "aria" / "models" / "aria_stage1.pt",
-    ROOT / "aria_stage1.pt",
     ROOT / "models" / "aria_stage1.pt",
+    ROOT / "aria_stage1.pt",
 )
 
 
@@ -58,10 +62,12 @@ def crop_bottom_80_percent(image):
     return image[start_y:, :]
 
 
-def preprocess(image):
+def preprocess(image, crop: bool = False):
     image = letterbox(image, size=640)
     image = apply_clahe_lab(image)
-    return crop_bottom_80_percent(image)
+    if crop:
+        image = crop_bottom_80_percent(image)
+    return image
 
 
 def summarize_result(filename: str, result) -> int:
@@ -81,13 +87,34 @@ def summarize_result(filename: str, result) -> int:
     return detection_count
 
 
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run preprocessed YOLO inference on BLR potholes demo images."
+    )
+    parser.add_argument(
+        "--model",
+        help="Path to the model weights. If not specified, resolves automatically.",
+    )
+    parser.add_argument(
+        "--crop",
+        action="store_true",
+        help="Apply 20%% top crop (assumes dashcam framing).",
+    )
+    return parser
+
+
 def main() -> None:
+    args = build_parser().parse_args()
+
     image_paths = sorted(IMAGES_DIR.glob("*.jpg"))
     if not image_paths:
         print(f"No .jpg images found in {IMAGES_DIR.as_posix()}")
         return
 
-    model = YOLO(str(resolve_model_path()))
+    model_path = args.model if args.model else str(resolve_model_path())
+    print(f"Loading YOLO model from {model_path} ...")
+    model = YOLO(model_path)
+
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     total_detections = 0
@@ -97,7 +124,7 @@ def main() -> None:
             print(f"{image_path.name}: skipped unreadable image")
             continue
 
-        preprocessed = preprocess(image)
+        preprocessed = preprocess(image, crop=args.crop)
         results = model.predict(
             source=preprocessed,
             conf=0.12,

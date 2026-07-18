@@ -3,8 +3,8 @@ Download the A.R.I.A. YOLO weights from the latest GitHub Release.
 
 Usage:
     python -m scripts.download_model
-    python -m scripts.download_model --output models/aria_stage1.pt
-    python -m scripts.download_model --url https://github.com/<owner>/<repo>/releases/latest/download/aria_stage1.pt
+    python -m scripts.download_model --output models/aria_best_v1.pt
+    python -m scripts.download_model --url https://github.com/<owner>/<repo>/releases/latest/download/aria_best_v1.pt
 """
 from __future__ import annotations
 
@@ -18,9 +18,9 @@ from urllib.request import urlopen
 
 DEFAULT_MODEL_URL = os.environ.get(
     "ARIA_MODEL_RELEASE_URL",
-    "https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_stage1.pt",
+    "https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_best_v1.pt",
 )
-DEFAULT_OUTPUT = Path(os.environ.get("ARIA_MODEL_PATH", "./models/aria_stage1.pt"))
+DEFAULT_OUTPUT = Path(os.environ.get("ARIA_MODEL_PATH", "./models/aria_best_v1.pt"))
 CHUNK_SIZE = 1024 * 1024
 
 
