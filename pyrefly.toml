@@ -1,0 +1,6 @@
+# pyrefly.toml — Pyrefly type-checker configuration for A.R.I.A.
+# Tells Pyrefly to use the project's virtual environment (Python 3.11)
+# instead of the system Python 3.14, which does not have the project
+# dependencies (ultralytics, fastapi, etc.) installed.
+
+python_interpreter = ".venv/Scripts/python.exe"

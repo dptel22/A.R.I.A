@@ -1,12 +1,8 @@
-"""
-tests/inference/test_inference.py - Smoke test for the A.R.I.A. detection pipeline.
+"""Smoke test for the A.R.I.A. detection pipeline."""
+# Loads aria_best_v1.pt (or falls back to aria_stage1.pt), runs all images in
+# data/demo/sample_images/ through the pipeline, and prints scored detection results.
+# Run via:  python -m tests.inference.test_inference
 
-Loads `aria_best_v1.pt` (or falls back to `aria_stage1.pt`), runs all images in `data/demo/sample_images/` through the pipeline,
-and prints scored detection results.
-
-Usage:
-    python -m tests.inference.test_inference
-"""
 from __future__ import annotations
 
 import logging

@@ -1,14 +1,7 @@
-"""
-aria/db/seed.py - A.R.I.A. idempotent seed data loader.
-
-Exposes:
-    seed_db(db_path: str) -> None
-
-Run as a script:
-    python -m aria.db.seed [optional_path]
-Env override:
-    ARIA_DB_PATH=./runtime/db/aria.db python -m aria.db.seed
-"""
+"""A.R.I.A. idempotent seed data loader."""
+# Exposes: seed_db(db_path: str) -> None
+# Run via:  python -m aria.db.seed [optional_path]
+# Env override:  ARIA_DB_PATH=./runtime/db/aria.db python -m aria.db.seed
 from __future__ import annotations
 
 import datetime

@@ -1,11 +1,8 @@
-"""
-One-time BLR potholes dataset downloader for local A.R.I.A. testing.
-
-Usage:
-    python -m scripts.download_blr_potholes
-    python -m scripts.download_blr_potholes --limit 25
-    python -m scripts.download_blr_potholes --out-dir data/demo/blr_potholes --force
-"""
+"""One-time BLR potholes dataset downloader for local A.R.I.A. testing."""
+# Run via:
+#   python -m scripts.download_blr_potholes
+#   python -m scripts.download_blr_potholes --limit 25
+#   python -m scripts.download_blr_potholes --out-dir data/demo/blr_potholes --force
 from __future__ import annotations
 
 import argparse

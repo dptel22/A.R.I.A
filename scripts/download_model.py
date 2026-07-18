@@ -1,11 +1,9 @@
-"""
-Download the A.R.I.A. YOLO weights from the latest GitHub Release.
+"""Download the A.R.I.A. YOLO weights from the latest GitHub Release."""
+# Run via:
+#   python -m scripts.download_model
+#   python -m scripts.download_model --output models/aria_best_v1.pt
+#   python -m scripts.download_model --url https://github.com/<owner>/<repo>/releases/latest/download/aria_best_v1.pt
 
-Usage:
-    python -m scripts.download_model
-    python -m scripts.download_model --output models/aria_best_v1.pt
-    python -m scripts.download_model --url https://github.com/<owner>/<repo>/releases/latest/download/aria_best_v1.pt
-"""
 from __future__ import annotations
 
 import argparse
