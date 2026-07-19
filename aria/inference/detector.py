@@ -7,6 +7,7 @@ run inference, return a list of raw detection dicts.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -32,8 +33,20 @@ EXPECTED_CLASS_NAMES: set[str] = {
     "pothole",
 }
 
-CONF_THRESHOLD: float = 0.25
-IOU_THRESHOLD: float = 0.45
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        log.warning("Invalid %s=%r; using %.2f", name, raw, default)
+        return default
+
+
+CONF_THRESHOLD: float = _float_env("ARIA_MODEL_CONF", 0.12)
+IOU_THRESHOLD: float = _float_env("ARIA_MODEL_IOU", 0.45)
+TEST_TIME_AUGMENT: bool = os.environ.get("ARIA_MODEL_AUGMENT", "false").lower() in {"1", "true", "yes", "on"}
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +111,7 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
         source=img_array,
         conf=CONF_THRESHOLD,
         iou=IOU_THRESHOLD,
+        augment=TEST_TIME_AUGMENT,
         verbose=False,
         imgsz=640,
     )

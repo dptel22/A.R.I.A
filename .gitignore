@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 .python-runtime/
 .pytest_tmp/
+.yolo-config/
 
 # Local databases and test artifacts
 api-test-*.db
@@ -18,6 +19,8 @@ api-test-*.db-shm
 # Generated artifacts
 frontend/dist/
 runtime/
+data/demo/blr_potholes/images/
+data/demo/blr_potholes/predictions/
 
 # Secrets and logs
 .env

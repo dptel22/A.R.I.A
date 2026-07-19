@@ -11,12 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 IMAGES_DIR = ROOT / "data" / "demo" / "blr_potholes" / "images"
 PREDICTIONS_DIR = ROOT / "data" / "demo" / "blr_potholes" / "predictions"
 MODEL_CANDIDATES = (
-    ROOT / "aria" / "models" / "aria_best_v1.pt",
-    ROOT / "models" / "aria_best_v1.pt",
-    ROOT / "aria_best_v1.pt",
     ROOT / "aria" / "models" / "aria_stage1.pt",
     ROOT / "models" / "aria_stage1.pt",
     ROOT / "aria_stage1.pt",
+    ROOT / "aria" / "models" / "aria_best_v1.pt",
+    ROOT / "models" / "aria_best_v1.pt",
+    ROOT / "aria_best_v1.pt",
 )
 
 

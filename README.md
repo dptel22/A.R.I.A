@@ -188,7 +188,7 @@ Key `.env` defaults:
 
 ```
 ARIA_DB_PATH=./runtime/db/aria.db
-ARIA_MODEL_PATH=./models/aria_best_v1.pt
+ARIA_MODEL_PATH=./models/aria_stage1.pt
 ARIA_UPLOAD_DIR=./runtime/uploads
 ```
 
@@ -271,9 +271,16 @@ Download model weights from the latest GitHub Release:
 python -m scripts.download_model
 ```
 
-Default target: `./models/aria_best_v1.pt`
+Default target: `./models/aria_stage1.pt`
 
 See: [docs/setup/model-release.md](docs/setup/model-release.md)
+
+BLR pothole benchmark images are generated local data and are not tracked in git:
+
+```bash
+python -m scripts.download_blr_potholes --limit 50
+python -m scripts.run_benchmark --limit 50
+```
 
 ---
 

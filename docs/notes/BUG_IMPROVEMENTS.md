@@ -9,8 +9,8 @@ This file documents the status of code quality issues, bug fixes, and improvemen
 ### 1. Model Artifact Mismatch & Missing Checkpoint in Release
 - **Status:** **OPEN / WORK IN PROGRESS**
 - **File(s):** `aria/api/app.py`, `scripts/download_model.py`, `scripts/demo_infer.py`
-- **Problem:** The system previously defaulted to `aria_stage1.pt` (global dashcam model) rather than `aria_best_v1.pt` (India fine-tuned model). Furthermore, the GitHub Release asset URL returned a 404.
-- **Remediation:** Code defaults updated to point to `aria_best_v1.pt`. The developer must upload the `aria_best_v1.pt` weights to the GitHub release assets.
+- **Problem:** The project had conflicting defaults between `aria_stage1.pt` and `aria_best_v1.pt`, and some release/documentation paths pointed to missing assets.
+- **Remediation:** Runtime and docs now standardize on the current stable `aria_stage1.pt` model while keeping experimental/future weights local or explicitly configured through `ARIA_MODEL_PATH`.
 
 ### 2. Diagnostic Script Crops Close-up Images
 - **Status:** **RESOLVED**

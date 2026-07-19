@@ -125,6 +125,20 @@ def _load_inspection_rows(db_path: Path):
         con.close()
 
 
+def test_health_reports_model_artifact_details(client):
+    test_client, _, _ = client
+
+    response = test_client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model_loaded"] is False
+    assert payload["model"]["loaded"] is False
+    assert payload["model"]["filename"] == "missing-model.pt"
+    assert payload["model"]["exists"] is False
+    assert payload["model"]["path"].endswith("missing-model.pt")
+
+
 def _insert_inspection_with_detection(db_path: Path, *, contractor_name: str, contractor_email: str) -> int:
     con = get_connection(str(db_path))
     con.row_factory = sqlite3.Row

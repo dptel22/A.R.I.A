@@ -4,6 +4,7 @@ Produces the ground-truth detection numbers for Task 1 (verification) and Task 3
 Usage:
     python -m scripts.run_benchmark
     python scripts/run_benchmark.py [--model path/to/model.pt]
+    python -m scripts.run_benchmark --limit 50
 """
 from __future__ import annotations
 
@@ -72,12 +73,22 @@ def main() -> None:
         "--model",
         help="Path to model weights. Auto-resolved if not specified.",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of images to benchmark. Use for quick local checks.",
+    )
     args = parser.parse_args()
 
     model_path = args.model if args.model else str(resolve_model())
     print(f"Model: {model_path}")
 
     image_paths = sorted(IMAGES_DIR.glob("*.jpg"))
+    if args.limit is not None:
+        if args.limit < 1:
+            raise SystemExit("--limit must be greater than 0")
+        image_paths = image_paths[:args.limit]
     if not image_paths:
         print(f"No .jpg images found in {IMAGES_DIR}")
         return

@@ -1,5 +1,5 @@
 """Smoke test for the A.R.I.A. detection pipeline."""
-# Loads aria_best_v1.pt (or falls back to aria_stage1.pt), runs all images in
+# Loads aria_stage1.pt (or falls back to aria_best_v1.pt), runs all images in
 # data/demo/sample_images/ through the pipeline, and prints scored detection results.
 # Run via:  python -m tests.inference.test_inference
 
@@ -16,9 +16,9 @@ log = logging.getLogger(__name__)
 
 
 def main() -> None:
-    model_path = Path("models/aria_best_v1.pt")
+    model_path = Path("models/aria_stage1.pt")
     if not model_path.exists():
-        model_path = Path("models/aria_stage1.pt")
+        model_path = Path("models/aria_best_v1.pt")
     images_dir = Path("data/demo/sample_images")
 
     # --- Validate model -------------------------------------------------------

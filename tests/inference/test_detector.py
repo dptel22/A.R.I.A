@@ -45,3 +45,36 @@ def test_detect_rejects_missing_expected_model_labels():
 
     with pytest.raises(ValueError, match="missing expected defect classes"):
         detect(np.zeros((32, 32, 3), dtype=np.uint8), model)
+
+
+def test_detect_passes_runtime_inference_settings(monkeypatch):
+    import aria.inference.detector as detector_module
+
+    class CapturingModel(FakeModel):
+        def __init__(self):
+            super().__init__(
+                {
+                    0: "longitudinal_crack",
+                    1: "transverse_crack",
+                    2: "alligator_crack",
+                    3: "pothole",
+                }
+            )
+            self.kwargs = None
+
+        def predict(self, **kwargs):
+            self.kwargs = kwargs
+            return [FakeResult([])]
+
+    model = CapturingModel()
+    monkeypatch.setattr(detector_module, "CONF_THRESHOLD", 0.07)
+    monkeypatch.setattr(detector_module, "IOU_THRESHOLD", 0.33)
+    monkeypatch.setattr(detector_module, "TEST_TIME_AUGMENT", True)
+
+    detections = detector_module.detect(np.zeros((32, 32, 3), dtype=np.uint8), model)
+
+    assert detections == []
+    assert model.kwargs["conf"] == 0.07
+    assert model.kwargs["iou"] == 0.33
+    assert model.kwargs["augment"] is True
+    assert model.kwargs["imgsz"] == 640

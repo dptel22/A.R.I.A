@@ -4,14 +4,14 @@ The production YOLO weights for A.R.I.A. are intentionally **not committed to gi
 
 ## Recommended release asset
 
-Upload the trained model as a GitHub Release asset named:
+Upload the current stable model as a GitHub Release asset named:
 
-`aria_best_v1.pt`
+`aria_stage1.pt`
 
 Recommended location for reviewers:
 
 - Latest release asset URL:
-  `https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_best_v1.pt`
+  `https://github.com/dptel22/A.R.I.A/releases/latest/download/aria_stage1.pt`
 
 ## Local download
 
@@ -23,7 +23,7 @@ python -m scripts.download_model
 
 This writes the file to the current `ARIA_MODEL_PATH` default:
 
-`./models/aria_best_v1.pt`
+`./models/aria_stage1.pt`
 
 ## Why this stays out of git
 
