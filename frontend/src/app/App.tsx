@@ -5,6 +5,8 @@ import CaseDetail from '../features/case-detail/CaseDetail';
 import DecisionHistory from '../features/history/DecisionHistory';
 import ReviewQueue from '../features/queue/ReviewQueue';
 import IngestionRuns from '../features/runs/IngestionRuns';
+import Intake from '../features/intake/Intake';
+import RoadSegments from '../features/segments/RoadSegments';
 import { fetchCaseDetail, fetchCases, fetchHealth, uploadInspection } from '../shared/api';
 import { AppTab, BackendHealth, RoadCase } from '../shared/types/app';
 
@@ -124,6 +126,13 @@ export default function App() {
         );
       case 'runs':
         return <IngestionRuns cases={cases} health={health} onRefresh={handleRefresh} />;
+
+      case 'intake':
+        return <Intake onSelectCase={handleSelectCase} />;
+
+      case 'segments':
+        return <RoadSegments onSelectCase={handleSelectCase} />;
+
       default:
         return (
           <ReviewQueue

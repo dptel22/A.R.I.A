@@ -1,20 +1,42 @@
 import { BackendDetectResponse, BackendDetailResponse, BackendHealth, BackendSummaryResponse } from './contracts';
 import { apiFetch, fetchBinary, getApiBase } from './client';
-import { describeDefect, fromDetail, fromSummary, mergeCase, normalizeDetections, placeholderEvidence, toCaseId, toRunId, toSeverity } from './mappers';
-import { RoadCase } from '../types/app';
+import {
+  describeDefect, fromDetail, fromSummary, mergeCase,
+  normalizeDetections, placeholderEvidence, toCaseId, toRunId, toSeverity,
+} from './mappers';
+import { RoadCase, RoadSegment, SubmissionCluster } from '../types/app';
+import {
+  DismissReason,
+  mockDismissCluster,
+  mockFetchClusterDetail,
+  mockFetchClusters,
+  mockFetchSegmentDetail,
+  mockFetchSegments,
+  mockGetDismissed,
+  mockPromoteCluster,
+} from './mockClient';
 
+/**
+ * Toggle to swap new Intake + Segments endpoints between mock and real backend.
+ * Set to false once the backend implements the section 5 endpoints.
+ */
+const USE_MOCKS = true;
+
+/* ─────────────────────────────────────────
+   Existing production endpoints (unchanged)
+───────────────────────────────────────── */
 export async function fetchHealth(): Promise<BackendHealth> {
   return apiFetch<BackendHealth>('/health');
 }
 
 export async function fetchCases(): Promise<RoadCase[]> {
   const response = await apiFetch<BackendSummaryResponse>('/api/v1/detections?limit=100');
-  return response.results.map(fromSummary);
+  return response.results.map((row) => ({ ...fromSummary(row), source: 'manual_upload' as const }));
 }
 
 export async function fetchCaseDetail(inspectionId: number, baseCase?: RoadCase): Promise<RoadCase> {
   const response = await apiFetch<BackendDetailResponse>(`/api/v1/detections/${inspectionId}`);
-  return fromDetail(response, baseCase);
+  return { ...fromDetail(response, baseCase), source: baseCase?.source ?? 'manual_upload' };
 }
 
 export async function uploadInspection(input: { file: File; lat: number; lng: number }): Promise<RoadCase> {
@@ -44,9 +66,7 @@ export async function uploadInspection(input: { file: File; lat: number; lng: nu
     contractorEmail: response.contract.contractor_email,
     contractId: response.contract.contract_id,
     dlpStatus: response.contract.contract_id
-      ? response.contract.is_dlp_active
-        ? 'Active'
-        : 'Expired'
+      ? response.contract.is_dlp_active ? 'Active' : 'Expired'
       : 'None',
     dlpExpiry: response.contract.dlp_end_date,
     recommendation: response.recommendation,
@@ -67,6 +87,7 @@ export async function uploadInspection(input: { file: File; lat: number; lng: nu
     isEnforceable: response.contract.is_enforceable,
     detections: normalizeDetections(response.all_detections),
     segmentHistory: [],
+    source: 'manual_upload',
   });
 
   return fetchCaseDetail(response.inspection_id, baseCase);
@@ -87,6 +108,51 @@ export async function openNoticePdf(inspectionId: number): Promise<void> {
   }
 
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+/* ─────────────────────────────────────────
+   New endpoints — gated behind USE_MOCKS
+───────────────────────────────────────── */
+export async function fetchClusters(): Promise<SubmissionCluster[]> {
+  if (USE_MOCKS) return mockFetchClusters();
+  return apiFetch<SubmissionCluster[]>('/intake/clusters');
+}
+
+export async function fetchClusterDetail(id: number): Promise<SubmissionCluster> {
+  if (USE_MOCKS) return mockFetchClusterDetail(id);
+  return apiFetch<SubmissionCluster>(`/intake/clusters/${id}`);
+}
+
+export async function promoteCluster(id: number, segmentId: number): Promise<void> {
+  if (USE_MOCKS) return mockPromoteCluster(id, segmentId);
+  return apiFetch<void>(`/intake/clusters/${id}/promote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ segmentId }),
+  });
+}
+
+export async function dismissCluster(id: number, reason: DismissReason): Promise<void> {
+  if (USE_MOCKS) return mockDismissCluster(id, reason);
+  return apiFetch<void>(`/intake/clusters/${id}/dismiss`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export { mockGetDismissed };
+
+export async function fetchSegments(): Promise<RoadSegment[]> {
+  if (USE_MOCKS) return mockFetchSegments();
+  return apiFetch<RoadSegment[]>('/segments');
+}
+
+export async function fetchSegmentDetail(
+  id: number,
+): Promise<{ segment: RoadSegment; cases: Partial<RoadCase>[] }> {
+  if (USE_MOCKS) return mockFetchSegmentDetail(id);
+  return apiFetch<{ segment: RoadSegment; cases: Partial<RoadCase>[] }>(`/segments/${id}`);
 }
 
 export { getApiBase } from './client';

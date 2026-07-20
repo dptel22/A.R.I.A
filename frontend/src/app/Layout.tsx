@@ -1,19 +1,15 @@
 import React from 'react';
-import { Activity, FileCheck, History, LayoutGrid } from 'lucide-react';
+import { Activity, FileCheck, History, LayoutGrid, Map, Inbox } from 'lucide-react';
 
 import { AppTab, BackendHealth, NavItem } from '../shared/types/app';
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'queue', label: 'Review Queue', icon: LayoutGrid },
-  { id: 'detail', label: 'Case Detail', icon: FileCheck },
-  { id: 'history', label: 'Decision History', icon: History },
-  { id: 'runs', label: 'Archive Summary', icon: Activity },
-];
-
-const TOP_TABS: Array<{ id: AppTab; label: string }> = [
-  { id: 'queue', label: 'Review Operations' },
-  { id: 'history', label: 'Decision History' },
-  { id: 'runs', label: 'Archive Summary' },
+  { id: 'queue',    label: 'Review Queue',     icon: LayoutGrid },
+  { id: 'detail',   label: 'Case Detail',       icon: FileCheck },
+  { id: 'history',  label: 'Decision History',  icon: History },
+  { id: 'runs',     label: 'Archive Summary',   icon: Activity },
+  { id: 'intake',   label: 'Intake',            icon: Inbox },
+  { id: 'segments', label: 'Road Segments',     icon: Map },
 ];
 
 interface LayoutProps {
@@ -24,88 +20,96 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activeTab, setActiveTab, health }: LayoutProps) {
-  const activeTopTab: AppTab = activeTab === 'detail' ? 'queue' : activeTab;
-
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="w-64 bg-stone-100 border-r border-stone-200 flex flex-col shrink-0">
-        <div className="p-6 border-b border-stone-200">
-          <div className="text-xl font-bold tracking-tighter text-civic-blue uppercase">A.R.I.A.</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">District Operations</div>
+      {/* ── Sidebar ── */}
+      <aside className="w-60 bg-paper border-r border-hairline flex flex-col shrink-0">
+        <div className="px-5 py-5 border-b border-hairline">
+          <div
+            className="text-lg font-headline font-bold tracking-tighter uppercase"
+            style={{ color: 'var(--color-authority-blue)' }}
+          >
+            A.R.I.A.
+          </div>
+          <div className="text-[9px] text-ink-soft uppercase tracking-widest font-bold mt-0.5">
+            District Operations
+          </div>
         </div>
 
-        <nav className="flex-1 py-4 overflow-y-auto">
-          <ul className="space-y-1 px-3">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors text-sm font-medium ${
-                    activeTab === item.id
-                      ? 'bg-stone-200 text-civic-blue font-bold border-r-2 border-civic-blue'
-                      : 'text-slate-600 hover:bg-stone-200 hover:text-civic-blue'
-                  }`}
-                >
-                  <item.icon size={18} />
-                  <span>{item.label}</span>
-                </button>
-              </li>
-            ))}
+        <nav className="flex-1 py-3 overflow-y-auto">
+          <ul className="space-y-0.5 px-2">
+            {NAV_ITEMS.map((item) => {
+              const isActive = activeTab === item.id ||
+                (activeTab === 'detail' && item.id === 'queue');
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-xs font-medium ${
+                      isActive
+                        ? 'bg-stone-200 font-bold border-l-2'
+                        : 'text-ink-soft hover:bg-stone-100 hover:text-ink'
+                    }`}
+                    style={isActive ? {
+                      color: 'var(--color-authority-blue)',
+                      borderColor: 'var(--color-authority-blue)',
+                    } : {}}
+                  >
+                    <item.icon size={15} />
+                    <span>{item.label}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
-        <div className="p-4 border-t border-stone-200 space-y-1">
-          <div className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-500">
-            <div className="flex items-center gap-3">
-              <Activity size={16} />
-              <span>System Health</span>
+        {/* System health — no fake persona */}
+        <div className="p-4 border-t border-hairline">
+          <div className="flex items-center justify-between px-1 text-xs text-ink-soft">
+            <div className="flex items-center gap-2">
+              <Activity size={13} />
+              <span className="text-[10px] font-medium uppercase tracking-wider">System</span>
             </div>
             <span
-              className={`text-[10px] font-bold uppercase tracking-wider ${
-                health?.model_loaded ? 'text-green-600' : 'text-orange-600'
-              }`}
+              className="text-[9px] font-bold uppercase tracking-wider"
+              style={{ color: health?.model_loaded ? '#2d6a4f' : 'var(--color-hazard-amber)' }}
             >
-              {health ? (health.model_loaded ? 'Model Ready' : 'Model Offline') : 'Checking'}
+              {health ? (health.model_loaded ? 'Ready' : 'Archive Only') : '—'}
             </span>
-          </div>
-          <div className="mt-4 pt-4 border-t border-stone-200 flex items-center gap-3">
-            <div className="w-8 h-8 bg-civic-blue rounded-sm flex items-center justify-center text-[10px] text-white font-bold">ME</div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">M. Engineer</div>
-              <div className="text-[10px] text-slate-500 mono-text">ID: OPS-8842</div>
-            </div>
           </div>
         </div>
       </aside>
 
+      {/* ── Main content ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-6 shrink-0">
-          <nav className="flex gap-6">
-            {TOP_TABS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`text-xs font-medium transition-colors ${
-                  activeTopTab === item.id ? 'text-civic-blue font-bold' : 'text-slate-500 hover:text-civic-blue'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+        <header className="h-12 bg-white border-b border-hairline flex items-center justify-between px-6 shrink-0">
+          <span
+            className="text-[10px] font-headline font-bold uppercase tracking-widest"
+            style={{ color: 'var(--color-authority-blue)' }}
+          >
+            {NAV_ITEMS.find((n) => n.id === activeTab || (activeTab === 'detail' && n.id === 'queue'))?.label ?? ''}
+          </span>
 
-          <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest">
-            <span className="rounded-sm border border-stone-200 bg-stone-100 px-2 py-1 text-slate-500">API Protected</span>
-            <span className={`rounded-sm border px-2 py-1 font-bold ${health?.model_loaded ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-orange-200 bg-orange-50 text-orange-700'}`}>
+          <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest">
+            <span className="rounded-sm border border-hairline bg-paper px-2 py-0.5 text-ink-soft">
+              API Protected
+            </span>
+            <span
+              className="rounded-sm border px-2 py-0.5 font-bold"
+              style={health?.model_loaded
+                ? { borderColor: '#b7e4c7', background: '#d8f3dc', color: '#2d6a4f' }
+                : { borderColor: 'var(--color-hairline)', background: 'var(--color-paper)', color: 'var(--color-hazard-amber)' }}
+            >
               {health?.model_loaded ? 'Model Ready' : 'Archive Only'}
             </span>
-            <span className="rounded-sm border border-stone-200 bg-stone-100 px-2 py-1 text-slate-500">
-              Version {health?.version || 'N/A'}
+            <span className="rounded-sm border border-hairline bg-paper px-2 py-0.5 text-ink-soft mono-text">
+              {health?.version ?? 'N/A'}
             </span>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-stone-50">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-paper">{children}</main>
       </div>
     </div>
   );

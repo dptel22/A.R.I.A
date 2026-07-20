@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { AlertCircle, ChevronRight, Clock, Filter, HardHat, RefreshCw, ShieldCheck, Upload } from 'lucide-react';
+import {
+  AlertCircle, ChevronRight, Clock, Filter,
+  HardHat, RefreshCw, ShieldCheck, Upload,
+} from 'lucide-react';
 import UploadInspectionModal from './UploadInspectionModal';
-import { formatDate, pipelineBadgeClass, pipelineLabel, severityRank } from '../../shared/lib/caseDisplay';
+import { formatDate, pipelineLabel, pipelineStatusClass, severityRank, sourceLabel } from '../../shared/lib/caseDisplay';
 import { BackendHealth, DLPStatus, RoadCase, Severity } from '../../shared/types/app';
+import DefectIcon from '../../shared/components/DefectIcon';
 
 interface ReviewQueueProps {
   cases: RoadCase[];
@@ -40,154 +44,123 @@ export default function ReviewQueue({
     .filter((item) => contractorFilter === 'All' || item.contractor === contractorFilter)
     .sort((left, right) => {
       const severityDelta = severityRank(right.severity) - severityRank(left.severity);
-      if (severityDelta !== 0) {
-        return severityDelta;
-      }
-      if (left.dlpStatus !== right.dlpStatus) {
-        return left.dlpStatus === 'Active' ? -1 : 1;
-      }
-      if (left.priorFlags !== right.priorFlags) {
-        return right.priorFlags - left.priorFlags;
-      }
+      if (severityDelta !== 0) return severityDelta;
+      if (left.dlpStatus !== right.dlpStatus) return left.dlpStatus === 'Active' ? -1 : 1;
+      if (left.priorFlags !== right.priorFlags) return right.priorFlags - left.priorFlags;
       return new Date(right.created).getTime() - new Date(left.created).getTime();
     });
 
-  const awaitingReview = cases.filter((item) => item.status === 'Awaiting Review').length;
-  const criticalDefects = cases.filter((item) => item.severity === 'Critical').length;
-  const underDlp = cases.filter((item) => item.dlpStatus === 'Active').length;
-  const manualInspection = cases.filter((item) => item.recommendation === 'Escalate Manual Inspection').length;
-  const escalatedToday = cases.filter((item) => item.status === 'Escalated').length;
+  const awaitingReview    = cases.filter((item) => item.status === 'Awaiting Review').length;
+  const criticalDefects   = cases.filter((item) => item.severity === 'Critical').length;
+  const underDlp          = cases.filter((item) => item.dlpStatus === 'Active').length;
+  const manualInspection  = cases.filter((item) => item.recommendation === 'Escalate Manual Inspection').length;
+  const escalatedToday    = cases.filter((item) => item.status === 'Escalated').length;
 
   async function handleRefresh() {
     setRefreshing(true);
-    try {
-      await onRefresh();
-    } finally {
-      setRefreshing(false);
-    }
+    try { await onRefresh(); } finally { setRefreshing(false); }
   }
+
+  const selectClass = 'bg-paper border border-hairline text-xs rounded-sm px-2 py-1 text-ink focus:outline-none focus:ring-1 focus:ring-authority-blue';
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-civic-blue mb-1">Review Queue</h1>
-          <p className="text-slate-500 text-sm">
-            Live inspection backlog from the FastAPI backend, including detection output, contract match, and DLP status.
+          <h1 className="text-2xl font-headline font-bold tracking-tight mb-1"
+              style={{ color: 'var(--color-authority-blue)' }}>
+            Review Queue
+          </h1>
+          <p className="text-ink-soft text-sm">
+            Live inspection backlog from the FastAPI backend — detection output, contract match, and DLP status.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button className="btn-secondary flex items-center gap-2 text-xs uppercase tracking-wider" onClick={handleRefresh}>
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-            Refresh Queue
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
           </button>
           <button className="btn-primary flex items-center gap-2 text-xs uppercase tracking-wider" onClick={() => setUploadOpen(true)}>
-            <Upload size={14} />
+            <Upload size={13} />
             Run Detection
           </button>
         </div>
       </div>
 
+      {/* KPI strip */}
       <div className="grid grid-cols-5 gap-4 mb-8">
         {[
-          { label: 'Awaiting Review', value: awaitingReview, icon: Clock, color: 'text-blue-600' },
-          { label: 'Critical Defects', value: criticalDefects, icon: AlertCircle, color: 'text-red-600' },
-          { label: 'Under DLP', value: underDlp, icon: ShieldCheck, color: 'text-orange-600' },
-          { label: 'Manual Inspection', value: manualInspection, icon: HardHat, color: 'text-slate-600' },
-          { label: 'Escalated Today', value: escalatedToday, icon: ChevronRight, color: 'text-civic-blue' },
+          { label: 'Awaiting Review', value: awaitingReview,   icon: Clock,      color: 'var(--color-authority-blue)' },
+          { label: 'Critical',        value: criticalDefects,  icon: AlertCircle, color: 'var(--color-signal-red)'    },
+          { label: 'Under DLP',       value: underDlp,         icon: ShieldCheck, color: 'var(--color-hazard-amber)'  },
+          { label: 'Manual Inspect',  value: manualInspection, icon: HardHat,     color: 'var(--color-ink-soft)'      },
+          { label: 'Escalated',       value: escalatedToday,   icon: ChevronRight,color: 'var(--color-authority-blue)'},
         ].map((kpi) => (
           <div key={kpi.label} className="surface-base p-4">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
-              <kpi.icon size={14} className={kpi.color} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-ink-soft">{kpi.label}</span>
+              <kpi.icon size={13} style={{ color: kpi.color }} />
             </div>
             <div className="text-2xl font-bold mono-text">{String(kpi.value).padStart(2, '0')}</div>
           </div>
         ))}
       </div>
 
-      <div className="surface-base p-3 mb-4 flex items-center justify-between text-xs text-slate-500">
+      {/* API status bar */}
+      <div className="surface-base p-3 mb-4 flex items-center justify-between text-xs text-ink-soft">
         <div>
           API status:{' '}
-          <span className={`font-bold ${health?.model_loaded ? 'text-green-700' : 'text-orange-700'}`}>
-            {health ? (health.model_loaded ? 'Model ready' : 'Model not loaded') : 'Checking backend...'}
+          <span className="font-bold" style={{ color: health?.model_loaded ? '#2d6a4f' : 'var(--color-hazard-amber)' }}>
+            {health ? (health.model_loaded ? 'Model ready' : 'Model not loaded') : 'Checking backend…'}
           </span>
           {!health?.model_loaded && (
-            <span className="ml-2 text-slate-400">
+            <span className="ml-2 text-ink-soft/60">
               Archive review remains available; new uploads require local model weights.
             </span>
           )}
         </div>
-        <div className="mono-text">Loaded inspections: {cases.length}</div>
+        <div className="mono-text">Loaded: {cases.length}</div>
       </div>
 
-      <div className="surface-base p-3 mb-6 flex items-center gap-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mr-4">
-          <Filter size={14} />
+      {/* Filter bar */}
+      <div className="surface-base p-3 mb-6 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2 text-[10px] font-bold text-ink-soft uppercase tracking-wider mr-2">
+          <Filter size={13} />
           Filters
         </div>
-        <select
-          value={severityFilter}
-          onChange={(event) => setSeverityFilter(event.target.value as 'All' | Severity)}
-          className="bg-stone-100 border-stone-200 text-xs rounded-sm focus:ring-civic-blue"
-        >
+        <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value as 'All' | Severity)} className={selectClass}>
           <option value="All">Severity: All</option>
-          <option value="Critical">Critical</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
+          {(['Critical','High','Medium','Low'] as Severity[]).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select
-          value={dlpFilter}
-          onChange={(event) => setDlpFilter(event.target.value as 'All' | DLPStatus)}
-          className="bg-stone-100 border-stone-200 text-xs rounded-sm focus:ring-civic-blue"
-        >
-          <option value="All">DLP Status: All</option>
+        <select value={dlpFilter} onChange={(e) => setDlpFilter(e.target.value as 'All' | DLPStatus)} className={selectClass}>
+          <option value="All">DLP: All</option>
           <option value="Active">Active</option>
           <option value="Expired">Expired</option>
           <option value="None">None</option>
         </select>
-        <select
-          value={zoneFilter}
-          onChange={(event) => setZoneFilter(event.target.value)}
-          className="bg-stone-100 border-stone-200 text-xs rounded-sm focus:ring-civic-blue"
-        >
+        <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className={selectClass}>
           <option value="All">Zone: All</option>
-          {zones.map((zone) => (
-            <option key={zone} value={zone}>
-              {zone}
-            </option>
-          ))}
+          {zones.map((z) => <option key={z} value={z}>{z}</option>)}
         </select>
-        <select
-          value={contractorFilter}
-          onChange={(event) => setContractorFilter(event.target.value)}
-          className="bg-stone-100 border-stone-200 text-xs rounded-sm focus:ring-civic-blue"
-        >
+        <select value={contractorFilter} onChange={(e) => setContractorFilter(e.target.value)} className={selectClass}>
           <option value="All">Contractor: All</option>
-          {contractors.map((contractor) => (
-            <option key={contractor} value={contractor}>
-              {contractor}
-            </option>
-          ))}
+          {contractors.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
-          className="ml-auto text-xs font-bold text-civic-blue hover:underline"
-          onClick={() => {
-            setSeverityFilter('All');
-            setDlpFilter('All');
-            setZoneFilter('All');
-            setContractorFilter('All');
-          }}
+          className="ml-auto text-xs font-bold hover:underline"
+          style={{ color: 'var(--color-authority-blue)' }}
+          onClick={() => { setSeverityFilter('All'); setDlpFilter('All'); setZoneFilter('All'); setContractorFilter('All'); }}
         >
-          Clear All
+          Clear
         </button>
       </div>
 
+      {/* Table */}
       <div className="surface-base overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-stone-100 border-b border-stone-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <tr className="bg-stone-100 border-b border-hairline text-[9px] font-bold uppercase tracking-wider text-ink-soft">
               <th className="px-4 py-3">Severity</th>
               <th className="px-4 py-3">Pipeline</th>
               <th className="px-4 py-3">Evidence</th>
@@ -195,32 +168,20 @@ export default function ReviewQueue({
               <th className="px-4 py-3">Road Segment</th>
               <th className="px-4 py-3">Ward / Zone</th>
               <th className="px-4 py-3">Contractor</th>
-              <th className="px-4 py-3">DLP Status</th>
-              <th className="px-4 py-3">Recommendation</th>
+              <th className="px-4 py-3">DLP</th>
+              <th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Review Status</th>
+              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="text-xs">
             {loading ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
-                  Loading inspection queue...
-                </td>
-              </tr>
+              <tr><td colSpan={12} className="px-4 py-12 text-center text-ink-soft">Loading inspection queue…</td></tr>
             ) : error ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-12 text-center text-red-700">
-                  {error}
-                </td>
-              </tr>
+              <tr><td colSpan={12} className="px-4 py-12 text-center" style={{ color: 'var(--color-signal-red)' }}>{error}</td></tr>
             ) : filteredCases.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
-                  No inspections match the current filters.
-                </td>
-              </tr>
+              <tr><td colSpan={12} className="px-4 py-12 text-center text-ink-soft">No inspections match the current filters.</td></tr>
             ) : (
               filteredCases.map((item) => (
                 <tr
@@ -228,40 +189,43 @@ export default function ReviewQueue({
                   onClick={() => onSelectCase(item.inspectionId)}
                   className="border-b border-stone-100 hover:bg-stone-50 cursor-pointer transition-colors group"
                 >
+                  {/* Severity — schematic icon + flag label */}
                   <td className="px-4 py-4">
-                    <span className={`badge badge-${item.severity.toLowerCase()}`}>{item.severity}</span>
+                    <div className="flex items-center gap-2">
+                      <DefectIcon className={item.defectClass} size={16} wrapClass={`badge badge-${item.severity.toLowerCase()}`} />
+                      <span className={`badge badge-${item.severity.toLowerCase()}`}>{item.severity}</span>
+                    </div>
+                  </td>
+                  {/* Pipeline — dot + label */}
+                  <td className="px-4 py-4">
+                    <span className={pipelineStatusClass(item.pipelineStatus)}>
+                      <span className="pipeline-dot" />
+                      {pipelineLabel(item.pipelineStatus)}
+                    </span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`badge ${pipelineBadgeClass(item.pipelineStatus)}`}>{pipelineLabel(item.pipelineStatus)}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="w-14 h-10 bg-stone-200 rounded-sm overflow-hidden border border-stone-300">
+                    <div className="w-14 h-10 bg-stone-200 rounded-sm overflow-hidden border border-hairline">
                       <img src={item.evidenceUrl} alt={item.id} className="w-full h-full object-cover" />
                     </div>
                   </td>
-                  <td className="px-4 py-4 mono-text font-bold text-civic-blue">{item.id}</td>
+                  <td className="px-4 py-4 mono-text font-bold" style={{ color: 'var(--color-authority-blue)' }}>{item.id}</td>
                   <td className="px-4 py-4 font-medium">{item.roadSegment}</td>
-                  <td className="px-4 py-4 text-slate-500">{item.ward}</td>
-                  <td className="px-4 py-4 text-slate-500">{item.contractor}</td>
+                  <td className="px-4 py-4 text-ink-soft">{item.ward}</td>
+                  <td className="px-4 py-4 text-ink-soft">{item.contractor}</td>
                   <td className="px-4 py-4">
-                    <span className={`badge ${item.dlpStatus === 'Active' ? 'badge-dlp' : 'bg-stone-200 text-slate-500'}`}>
+                    <span className={`badge ${item.dlpStatus === 'Active' ? 'badge-dlp' : 'badge-none'}`}>
                       {item.dlpStatus === 'None' ? 'No Contract' : `DLP ${item.dlpStatus}`}
                     </span>
                   </td>
+                  <td className="px-4 py-4 text-ink-soft text-[10px]">{sourceLabel(item.source)}</td>
+                  <td className="px-4 py-4 text-ink-soft mono-text">{formatDate(item.created)}</td>
                   <td className="px-4 py-4">
-                    <span className="text-[10px] font-medium text-slate-600 italic">
-                      Recommended: {item.recommendation}
-                    </span>
-                    <div className="mt-1 text-[10px] text-slate-400">Prior flags: {item.priorFlags}</div>
-                  </td>
-                  <td className="px-4 py-4 text-slate-500 mono-text">{formatDate(item.created)}</td>
-                  <td className="px-4 py-4">
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                    <span className="px-2 py-0.5 rounded-sm text-[9px] font-bold bg-stone-100 text-ink-soft border border-hairline uppercase">
                       {item.status}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-right">
-                    <ChevronRight size={16} className="text-slate-300 group-hover:text-civic-blue transition-colors" />
+                    <ChevronRight size={15} className="text-hairline group-hover:text-ink transition-colors" />
                   </td>
                 </tr>
               ))

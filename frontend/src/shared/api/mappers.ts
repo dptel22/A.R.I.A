@@ -5,7 +5,7 @@ import {
   BackendSeverity,
   BackendSummaryRow,
 } from './contracts';
-import { DLPStatus, DetectionBox, RoadCase, Severity, SegmentHistoryItem } from '../types/app';
+import { DLPStatus, DetectionBox, RoadCase, Severity, SegmentHistoryItem, SubmissionSource } from '../types/app';
 import { getApiBase } from './client';
 
 export function toSeverity(level: BackendSeverity): Severity {
@@ -145,6 +145,7 @@ export function mergeCase(base: Partial<RoadCase>, detail: Partial<RoadCase>): R
     isEnforceable: detail.isEnforceable ?? base.isEnforceable ?? false,
     detections: detail.detections ?? base.detections ?? [],
     segmentHistory: detail.segmentHistory ?? base.segmentHistory ?? [],
+    source: (detail.source ?? base.source ?? 'manual_upload') as SubmissionSource,
   };
 }
 

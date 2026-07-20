@@ -29,3 +29,4 @@ data/demo/blr_potholes/predictions/
 
 # Large local assets
 models/*.pt
+frontend.7z

@@ -1,98 +1,163 @@
 @import "tailwindcss";
 
 @theme {
-  --font-headline: "Public Sans", sans-serif;
+  /* ── Typography ── */
+  --font-headline: "Overpass", sans-serif;
   --font-body: "Public Sans", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
 
-  --color-stone-50: #f9f9f8;
-  --color-stone-100: #f4f4f3;
-  --color-stone-200: #eeeeed;
-  --color-stone-300: #e8e8e7;
-  --color-stone-400: #e2e2e2;
-  
-  --color-civic-blue: #00507d;
-  --color-civic-blue-dark: #003d5f;
-  --color-civic-blue-light: #006399;
-  
-  --color-critical-red: #ba1a1a;
-  --color-dlp-amber: #f27d26;
+  /* ── Approved palette ── */
+  --color-paper: #F5F3EE;
+  --color-ink: #1C1B19;
+  --color-ink-soft: #5A584F;
+  --color-hairline: #D8D4C8;
+
+  /* Authority-blue: letterhead / reference contexts only */
+  --color-authority-blue: #0B3B5C;
+
+  /* Hazard-amber: DLP / high-severity accents */
+  --color-hazard-amber: #C77800;
+
+  /* Signal-red: critical only */
+  --color-signal-red: #A31515;
+
+  /* ── Stone scale mapped to paper/hairline palette ── */
+  --color-stone-50: #F5F3EE;
+  --color-stone-100: #EDE9E1;
+  --color-stone-200: #D8D4C8;
+  --color-stone-300: #C4BFB2;
+  --color-stone-400: #A8A298;
+
+  /* ── Legacy aliases kept for existing components ── */
+  --color-civic-blue: #0B3B5C;
+  --color-civic-blue-dark: #082d46;
+  --color-civic-blue-light: #1a5278;
+  --color-critical-red: #A31515;
+  --color-dlp-amber: #C77800;
 }
 
+/* ─────────────────────────────────────────
+   Base
+───────────────────────────────────────── */
 @layer base {
   body {
-    @apply bg-stone-50 text-slate-900 font-body antialiased;
+    @apply bg-paper text-ink font-body antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-headline);
   }
 }
 
+/* ─────────────────────────────────────────
+   Surfaces
+───────────────────────────────────────── */
 @layer components {
   .surface-base {
-    @apply bg-white border border-stone-200 shadow-sm;
-  }
-  
-  .surface-nested {
-    @apply bg-stone-100 border border-stone-200;
+    @apply bg-white border border-hairline shadow-sm;
   }
 
+  .surface-nested {
+    @apply bg-paper border border-hairline;
+  }
+
+  /* ─────────────────────────────────────────
+     Buttons
+  ───────────────────────────────────────── */
   .btn-primary {
-    @apply bg-civic-blue text-white px-4 py-2 rounded-sm font-medium hover:bg-civic-blue-dark transition-colors disabled:opacity-50;
+    @apply bg-authority-blue text-white px-4 py-2 rounded-sm font-medium
+           hover:bg-civic-blue-dark transition-colors disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply bg-stone-200 text-slate-700 px-4 py-2 rounded-sm font-medium hover:bg-stone-300 transition-colors disabled:opacity-50;
+    @apply bg-paper text-ink-soft border border-hairline px-4 py-2 rounded-sm
+           font-medium hover:bg-stone-200 transition-colors disabled:opacity-50;
   }
 
   .btn-warning {
-    @apply bg-critical-red text-white px-4 py-2 rounded-sm font-medium hover:bg-red-800 transition-colors disabled:opacity-50;
+    @apply bg-signal-red text-white px-4 py-2 rounded-sm font-medium
+           hover:opacity-90 transition-colors disabled:opacity-50;
   }
 
+  /* ─────────────────────────────────────────
+     Severity badges — transparent flag style
+     (left-border accent, no filled color pill)
+  ───────────────────────────────────────── */
   .badge {
-    @apply px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider;
+    @apply px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider
+           bg-transparent border-l-2 rounded-none;
   }
 
   .badge-critical {
-    @apply bg-red-100 text-critical-red border border-red-200;
+    border-color: var(--color-signal-red);
+    color: var(--color-signal-red);
   }
 
   .badge-high {
-    @apply bg-orange-100 text-orange-700 border border-orange-200;
+    border-color: var(--color-hazard-amber);
+    color: var(--color-hazard-amber);
   }
 
+  /* DLP shares the hazard-amber treatment */
+  .badge-dlp {
+    border-color: var(--color-hazard-amber);
+    color: var(--color-hazard-amber);
+  }
+
+  /* Medium, low, none visually recede using ink-soft/hairline — no extra hues */
   .badge-medium {
-    @apply bg-blue-100 text-blue-700 border border-blue-200;
+    border-color: var(--color-ink-soft);
+    color: var(--color-ink-soft);
   }
 
   .badge-low {
-    @apply bg-slate-100 text-slate-600 border border-slate-200;
+    border-color: var(--color-hairline);
+    color: var(--color-ink-soft);
   }
 
   .badge-none {
-    @apply bg-stone-100 text-slate-500 border border-stone-200;
+    border-color: var(--color-hairline);
+    color: var(--color-ink-soft);
   }
 
-  .badge-dlp {
-    @apply bg-orange-100 text-dlp-amber border border-orange-200;
+  /* ─────────────────────────────────────────
+     Pipeline status — dot + label
+     (replaces solid pill badges)
+  ───────────────────────────────────────── */
+  .pipeline-status {
+    @apply inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider;
   }
 
-  .badge-pipeline-ok {
-    @apply bg-emerald-100 text-emerald-700 border border-emerald-200;
+  .pipeline-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full shrink-0;
   }
 
-  .badge-pipeline-empty {
-    @apply bg-slate-100 text-slate-600 border border-slate-200;
+  .pipeline-ok {
+    @apply text-ink-soft;
+  }
+  .pipeline-ok .pipeline-dot {
+    background-color: var(--color-ink-soft);
   }
 
-  .badge-pipeline-failed {
-    @apply bg-red-100 text-critical-red border border-red-200;
+  .pipeline-empty {
+    @apply text-ink-soft;
+  }
+  .pipeline-empty .pipeline-dot {
+    background-color: var(--color-hairline);
   }
 
+  .pipeline-failed {
+    color: var(--color-signal-red);
+  }
+  .pipeline-failed .pipeline-dot {
+    background-color: var(--color-signal-red);
+  }
+
+  /* ─────────────────────────────────────────
+     Mono utility
+  ───────────────────────────────────────── */
   .mono-text {
-    @apply font-mono tracking-tight;
+    font-family: var(--font-mono);
+    @apply tracking-tight;
   }
-}
-
-.grid-bg {
-  background-image: radial-gradient(circle, #c0c7d1 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.1;
 }
