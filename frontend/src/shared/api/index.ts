@@ -8,6 +8,7 @@ import { RoadCase, RoadSegment, SubmissionCluster } from '../types/app';
 import {
   DismissReason,
   mockDismissCluster,
+  mockFetchCaseDetail,
   mockFetchClusterDetail,
   mockFetchClusters,
   mockFetchSegmentDetail,
@@ -143,6 +144,10 @@ export async function dismissCluster(id: number, reason: DismissReason): Promise
 
 export { mockGetDismissed };
 
+export async function fetchMockCaseDetail(inspectionId: number): Promise<RoadCase> {
+  return mockFetchCaseDetail(inspectionId);
+}
+
 export async function fetchSegments(): Promise<RoadSegment[]> {
   if (USE_MOCKS) return mockFetchSegments();
   return apiFetch<RoadSegment[]>('/segments');
@@ -150,9 +155,9 @@ export async function fetchSegments(): Promise<RoadSegment[]> {
 
 export async function fetchSegmentDetail(
   id: number,
-): Promise<{ segment: RoadSegment; cases: Partial<RoadCase>[] }> {
+): Promise<{ segment: RoadSegment; cases: RoadCase[] }> {
   if (USE_MOCKS) return mockFetchSegmentDetail(id);
-  return apiFetch<{ segment: RoadSegment; cases: Partial<RoadCase>[] }>(`/segments/${id}`);
+  return apiFetch<{ segment: RoadSegment; cases: RoadCase[] }>(`/segments/${id}`);
 }
 
 export { getApiBase } from './client';

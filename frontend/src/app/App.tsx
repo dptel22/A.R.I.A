@@ -68,7 +68,14 @@ export default function App() {
     }
   }, [selectedCaseId, activeTab, cases]);
 
-  async function handleSelectCase(inspectionId: number) {
+  async function handleSelectCase(inspectionId: number, preloadedCase?: RoadCase) {
+    if (preloadedCase) {
+      setCaseDetails((current) => ({ ...current, [inspectionId]: preloadedCase }));
+      setSelectedCaseId(inspectionId);
+      setActiveTab('detail');
+      return;
+    }
+
     setSelectedCaseId(inspectionId);
     setActiveTab('detail');
     if (!caseDetails[inspectionId]) {

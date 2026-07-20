@@ -90,6 +90,18 @@ export function mockGetDismissed(): DismissedCluster[] {
   return dismissed;
 }
 
+export function mockFetchCaseDetail(inspectionId: number): Promise<RoadCase> {
+  const mockCase = Object.values(MOCK_SEGMENT_CASES)
+    .flat()
+    .find((item) => item.inspectionId === inspectionId);
+
+  if (!mockCase) {
+    return Promise.reject(new Error(`Mock case ${inspectionId} not found.`));
+  }
+
+  return delay(mockCase);
+}
+
 /* ─────────────────────────────────────────
    Segment handlers
 ───────────────────────────────────────── */
@@ -99,7 +111,7 @@ export function mockFetchSegments(): Promise<RoadSegment[]> {
 
 export function mockFetchSegmentDetail(
   id: number,
-): Promise<{ segment: RoadSegment; cases: Partial<RoadCase>[] }> {
+): Promise<{ segment: RoadSegment; cases: RoadCase[] }> {
   const segment = MOCK_SEGMENTS.find((s) => s.id === id);
   if (!segment) {
     return Promise.reject(new Error(`Segment ${id} not found.`));

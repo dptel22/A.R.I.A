@@ -5,7 +5,7 @@ import { formatDate } from '../../shared/lib/caseDisplay';
 import { ContractSummary, RoadCase, RoadSegment } from '../../shared/types/app';
 
 interface RoadSegmentsProps {
-  onSelectCase: (inspectionId: number) => void;
+  onSelectCase: (inspectionId: number, preloadedCase?: RoadCase) => void;
 }
 
 /* ── Schematic bbox map ── */
@@ -80,7 +80,7 @@ export default function RoadSegments({ onSelectCase }: RoadSegmentsProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detail, setDetail] = useState<{ segment: RoadSegment; cases: Partial<RoadCase>[] } | null>(null);
+  const [detail, setDetail] = useState<{ segment: RoadSegment; cases: RoadCase[] } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [wardFilter, setWardFilter] = useState('All');
@@ -262,7 +262,7 @@ export default function RoadSegments({ onSelectCase }: RoadSegmentsProps) {
                   {detail.cases.map((c) => (
                     <button
                       key={c.inspectionId}
-                      onClick={() => c.inspectionId && onSelectCase(c.inspectionId)}
+                      onClick={() => onSelectCase(c.inspectionId, c)}
                       className="w-full flex items-center justify-between p-3 bg-stone-50 border border-hairline rounded-sm hover:border-authority-blue transition-colors text-left group"
                     >
                       <div>
