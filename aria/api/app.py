@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from aria.api.routes import api_router, health_router
+from aria.api.routes.intake import router as intake_router
+from aria.api.routes.segments import router as segments_router
 from aria.db.schema import init_db
 
 load_dotenv()
@@ -115,3 +117,5 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=_UPLOAD_ROOT), name="uploads")
 app.include_router(health_router)
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(intake_router)
+app.include_router(segments_router)

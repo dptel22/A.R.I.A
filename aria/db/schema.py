@@ -62,7 +62,8 @@ _DDL: list[str] = [
     """
     CREATE TABLE IF NOT EXISTS inspection_events (
         id                      INTEGER PRIMARY KEY,
-        segment_id              INTEGER NOT NULL REFERENCES road_segments(id) ON DELETE CASCADE,
+        segment_id              INTEGER REFERENCES road_segments(id) ON DELETE SET NULL,
+        source_type             TEXT    NOT NULL DEFAULT 'manual_upload',
         inspector_id            TEXT,              -- API key hash or worker ID for audit trail
         lat                     REAL    NOT NULL,
         lng                     REAL    NOT NULL,
@@ -76,7 +77,33 @@ _DDL: list[str] = [
         is_dlp_active_snapshot  INTEGER NOT NULL DEFAULT 0,
         created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
         CHECK (pipeline_status IN ('SUCCEEDED', 'NO_DETECTIONS', 'FAILED')),
+        CHECK (source_type IN ('manual_upload', 'citizen_submission', 'roadcam_survey')),
         CHECK (is_dlp_active_snapshot IN (0, 1))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS submission_batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_type TEXT NOT NULL CHECK (source_type IN ('citizen_submission', 'roadcam_survey')),
+        submitted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'done', 'failed'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS raw_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        batch_id INTEGER NOT NULL REFERENCES submission_batches(id),
+        image_url TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lng REAL NOT NULL,
+        exif_lat REAL,
+        exif_lng REAL,
+        exif_timestamp TEXT,
+        gps_mismatch_flag INTEGER NOT NULL DEFAULT 0 CHECK (gps_mismatch_flag IN (0, 1)),
+        status TEXT NOT NULL DEFAULT 'unreviewed' CHECK (status IN ('unreviewed', 'promoted', 'dismissed')),
+        dismiss_reason TEXT CHECK (dismiss_reason IN ('spam', 'duplicate', 'not_a_road_defect', 'other')),
+        promoted_inspection_id INTEGER REFERENCES inspection_events(id),
+        submitted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     )
     """,
     # -----------------------------------------------------------------------
@@ -136,6 +163,10 @@ _INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_det_ie        ON detections(inspection_event_id)",
     "CREATE INDEX IF NOT EXISTS idx_det_severity  ON detections(severity_level)",
     "CREATE INDEX IF NOT EXISTS idx_det_created_at ON detections(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_submissions_status ON raw_submissions(status)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_submissions_batch ON raw_submissions(batch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_submissions_promoted_inspection ON raw_submissions(promoted_inspection_id)",
+    "CREATE INDEX IF NOT EXISTS idx_raw_submissions_submitted_at ON raw_submissions(submitted_at)",
 ]
 
 
@@ -147,6 +178,7 @@ _INSPECTION_EVENT_COLUMNS: dict[str, str] = {
     "contractor_email_snapshot": "ALTER TABLE inspection_events ADD COLUMN contractor_email_snapshot TEXT",
     "dlp_end_date_snapshot": "ALTER TABLE inspection_events ADD COLUMN dlp_end_date_snapshot TEXT",
     "is_dlp_active_snapshot": "ALTER TABLE inspection_events ADD COLUMN is_dlp_active_snapshot INTEGER NOT NULL DEFAULT 0",
+    "source_type": "ALTER TABLE inspection_events ADD COLUMN source_type TEXT NOT NULL DEFAULT 'manual_upload'",
 }
 
 
@@ -162,6 +194,85 @@ def _ensure_inspection_event_columns(con) -> None:
     for column_name, ddl in _INSPECTION_EVENT_COLUMNS.items():
         if column_name not in existing_columns:
             con.execute(ddl)
+
+
+def _inspection_segment_is_nullable(con) -> bool:
+    for row in con.execute("PRAGMA table_info(inspection_events)").fetchall():
+        if row[1] == "segment_id":
+            return int(row[3]) == 0
+    return True
+
+
+def _rebuild_inspection_events_table_for_intake(con) -> None:
+    if "inspection_events" not in {
+        row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    }:
+        return
+    existing_columns = _get_existing_columns(con, "inspection_events")
+    if _inspection_segment_is_nullable(con) and "source_type" in existing_columns:
+        return
+
+    log.info("Migrating inspection_events for nullable segment_id and source_type.")
+    foreign_keys_enabled = int(con.execute("PRAGMA foreign_keys").fetchone()[0])
+    if foreign_keys_enabled:
+        con.execute("PRAGMA foreign_keys = OFF")
+
+    try:
+        with con:
+            con.execute(
+                """
+                CREATE TABLE inspection_events__new (
+                    id                      INTEGER PRIMARY KEY,
+                    segment_id              INTEGER REFERENCES road_segments(id) ON DELETE SET NULL,
+                    source_type             TEXT    NOT NULL DEFAULT 'manual_upload',
+                    inspector_id            TEXT,
+                    lat                     REAL    NOT NULL,
+                    lng                     REAL    NOT NULL,
+                    image_path              TEXT,
+                    pipeline_status         TEXT    NOT NULL DEFAULT 'NO_DETECTIONS',
+                    failure_reason          TEXT,
+                    contract_id_snapshot    INTEGER REFERENCES contracts(id) ON DELETE SET NULL,
+                    contractor_name_snapshot TEXT,
+                    contractor_email_snapshot TEXT,
+                    dlp_end_date_snapshot   TEXT,
+                    is_dlp_active_snapshot  INTEGER NOT NULL DEFAULT 0,
+                    created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    CHECK (pipeline_status IN ('SUCCEEDED', 'NO_DETECTIONS', 'FAILED')),
+                    CHECK (source_type IN ('manual_upload', 'citizen_submission', 'roadcam_survey')),
+                    CHECK (is_dlp_active_snapshot IN (0, 1))
+                )
+                """
+            )
+            target_columns = [
+                "id", "segment_id", "source_type", "inspector_id", "lat", "lng", "image_path",
+                "pipeline_status", "failure_reason", "contract_id_snapshot",
+                "contractor_name_snapshot", "contractor_email_snapshot", "dlp_end_date_snapshot",
+                "is_dlp_active_snapshot", "created_at",
+            ]
+            _nullable_defaults = {
+                "source_type": "'manual_upload'",
+                "pipeline_status": "'NO_DETECTIONS'",
+                "is_dlp_active_snapshot": "0",
+            }
+            select_exprs = [
+                col if col in existing_columns and col not in _nullable_defaults else (
+                    f"COALESCE({col}, {_nullable_defaults[col]})" if col in existing_columns
+                    else _nullable_defaults.get(col, "NULL")
+                )
+                for col in target_columns
+            ]
+            con.execute(
+                f"""
+                INSERT INTO inspection_events__new ({", ".join(target_columns)})
+                SELECT {", ".join(select_exprs)}
+                FROM inspection_events
+                """
+            )
+            con.execute("DROP TABLE inspection_events")
+            con.execute("ALTER TABLE inspection_events__new RENAME TO inspection_events")
+    finally:
+        if foreign_keys_enabled:
+            con.execute("PRAGMA foreign_keys = ON")
 
 
 def _index_columns(con, index_name: str) -> list[str]:
@@ -363,6 +474,7 @@ def init_db(db_path: str) -> None:
     try:
         if _has_legacy_contract_uniqueness(con):
             _rebuild_contracts_table_without_legacy_uniqueness(con)
+        _rebuild_inspection_events_table_for_intake(con)
 
         with con:  # auto-commit on success, rollback on exception
             for ddl in _DDL:

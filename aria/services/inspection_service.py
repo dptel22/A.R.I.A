@@ -69,6 +69,18 @@ def _notice_url_for(inspection_id: int, pipeline_status: str, detection_count: i
     return None
 
 
+def _road_name(row: dict[str, Any]) -> str:
+    return row.get("road_name") or "No mapped segment"
+
+
+def _ward_id(row: dict[str, Any]) -> str:
+    return row.get("ward_id") or "UNKNOWN"
+
+
+def _zone_id(row: dict[str, Any]) -> str:
+    return row.get("zone_id") or "UNKNOWN"
+
+
 def _save_uploaded_image(img_bytes: bytes, content_type: str) -> str:
     os.makedirs(_UPLOAD_DIR, exist_ok=True)
     extension = _CONTENT_TYPE_EXTENSIONS.get(content_type, ".bin")
@@ -140,10 +152,16 @@ def _recommended_action(
     severity_level: str,
     is_dlp_active: bool,
     pipeline_status: str = "SUCCEEDED",
+    *,
+    has_contract: bool = True,
 ) -> str:
     if pipeline_status == "FAILED":
         return "Escalate Manual Inspection"
-    if pipeline_status != "SUCCEEDED" or not is_dlp_active:
+    if not is_dlp_active:
+        if not has_contract and pipeline_status == "SUCCEEDED" and severity_level != "NONE":
+            return "Escalate Manual Inspection"
+        return "No Action"
+    if pipeline_status != "SUCCEEDED":
         return "No Action"
 
     severity = _PUBLIC_TO_CORE_SEVERITY.get(severity_level)
@@ -216,17 +234,19 @@ def _find_contract(con: sqlite3.Connection, segment_id: int) -> dict[str, Any] |
 def _insert_inspection_event(
     db: sqlite3.Connection,
     *,
-    segment_id: int,
+    segment_id: int | None,
     lat: float,
     lng: float,
     image_path: str | None,
     pipeline_result: PipelineResult,
     contract_snapshot: dict[str, Any],
+    source_type: str = "manual_upload",
 ) -> int:
     cur = db.execute(
         """
         INSERT INTO inspection_events (
             segment_id,
+            source_type,
             lat,
             lng,
             image_path,
@@ -237,10 +257,11 @@ def _insert_inspection_event(
             contractor_email_snapshot,
             dlp_end_date_snapshot,
             is_dlp_active_snapshot
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             segment_id,
+            source_type,
             lat,
             lng,
             image_path,
@@ -261,12 +282,13 @@ def _insert_inspection_event(
 def _persist_inspection(
     db: sqlite3.Connection,
     *,
-    segment_id: int,
+    segment_id: int | None,
     lat: float,
     lng: float,
     image_path: str | None,
     pipeline_result: PipelineResult,
     contract_snapshot: dict[str, Any],
+    source_type: str = "manual_upload",
 ) -> int:
     with db:
         inspection_id = _insert_inspection_event(
@@ -277,6 +299,7 @@ def _persist_inspection(
             image_path=image_path,
             pipeline_result=pipeline_result,
             contract_snapshot=contract_snapshot,
+            source_type=source_type,
         )
 
         if pipeline_result.status == "SUCCEEDED" and pipeline_result.detections:
@@ -311,6 +334,43 @@ def _persist_inspection(
             )
 
     return inspection_id
+
+
+def persist_intake_inspection(
+    *,
+    db: sqlite3.Connection,
+    segment_id: int | None,
+    source_type: str,
+    lat: float,
+    lng: float,
+    image_path: str | None,
+    pipeline_result: PipelineResult,
+    contract_snapshot: dict[str, Any],
+) -> int:
+    return _persist_inspection(
+        db=db,
+        segment_id=segment_id,
+        source_type=source_type,
+        lat=lat,
+        lng=lng,
+        image_path=image_path,
+        pipeline_result=pipeline_result,
+        contract_snapshot=contract_snapshot,
+    )
+
+
+def find_contract_snapshot(db: sqlite3.Connection, segment_id: int | None) -> dict[str, Any]:
+    if segment_id is None:
+        return _contract_snapshot(None)
+    return _contract_snapshot(_find_contract(db, segment_id))
+
+
+def save_intake_image(img_bytes: bytes, content_type: str = "image/jpeg") -> str | None:
+    try:
+        return _save_uploaded_image(img_bytes, content_type)
+    except Exception:
+        log.exception("Failed to persist intake image")
+        return None
 
 
 def _pipeline_http_exception(pipeline_result: PipelineResult, inspection_id: int) -> HTTPException:
@@ -496,7 +556,7 @@ def list_detection_summaries(
                       AND ie2.id <> ie.id
                 ) AS prior_flags
             FROM inspection_events ie
-            JOIN road_segments rs ON ie.segment_id = rs.id
+            LEFT JOIN road_segments rs ON ie.segment_id = rs.id
             LEFT JOIN detections d ON d.inspection_event_id = ie.id
             {where_sql}
             GROUP BY ie.id
@@ -529,6 +589,9 @@ def list_detection_summaries(
         item.pop("dlp_end_date_snapshot", None)
         item.pop("is_dlp_active_snapshot", None)
         item["image_url"] = _build_image_url(item.pop("image_path", None))
+        item["road_name"] = _road_name(item)
+        item["ward_id"] = _ward_id(item)
+        item["zone_id"] = _zone_id(item)
         item["contract_id"] = contract_payload["contract_id"]
         item["contractor_name"] = contract_payload["contractor_name"]
         item["contractor_email"] = contract_payload["contractor_email"]
@@ -538,9 +601,14 @@ def list_detection_summaries(
             item["highest_severity"],
             contract_payload["is_dlp_active"],
             pipeline_status,
+            has_contract=bool(contract_payload["contract_id"]),
         )
         item["dlp_status"] = "ACTIVE" if contract_payload["is_dlp_active"] else ("EXPIRED" if contract_payload["contract_id"] else "NONE")
-        item["notice_url"] = _notice_url_for(item["inspection_id"], pipeline_status, item["total_defects"])
+        item["notice_url"] = (
+            _notice_url_for(item["inspection_id"], pipeline_status, item["total_defects"])
+            if item.get("segment_id") is not None and contract_payload["is_enforceable"]
+            else None
+        )
         results.append(item)
 
     return {
@@ -574,7 +642,7 @@ def get_detection_detail(*, db: sqlite3.Connection, inspection_id: int) -> dict[
             rs.ward_id,
             rs.zone_id
         FROM inspection_events ie
-        JOIN road_segments rs ON ie.segment_id = rs.id
+        LEFT JOIN road_segments rs ON ie.segment_id = rs.id
         WHERE ie.id = ?
         """,
         (inspection_id,),
@@ -662,9 +730,9 @@ def get_detection_detail(*, db: sqlite3.Connection, inspection_id: int) -> dict[
         "lat": inspection["lat"],
         "lng": inspection["lng"],
         "image_url": _build_image_url(inspection.get("image_path")),
-        "road_segment": inspection["road_name"],
-        "ward_id": inspection["ward_id"],
-        "zone_id": inspection["zone_id"],
+        "road_segment": _road_name(inspection),
+        "ward_id": _ward_id(inspection),
+        "zone_id": _zone_id(inspection),
         "pipeline_status": inspection["pipeline_status"],
         "failure_reason": inspection["failure_reason"],
         "total_detections": len(detections),
@@ -677,8 +745,13 @@ def get_detection_detail(*, db: sqlite3.Connection, inspection_id: int) -> dict[
             highest_severity,
             contract_payload["is_dlp_active"],
             inspection["pipeline_status"],
+            has_contract=bool(contract_payload["contract_id"]),
         ),
-        "notice_url": _notice_url_for(inspection_id, inspection["pipeline_status"], len(detections)),
+        "notice_url": (
+            _notice_url_for(inspection_id, inspection["pipeline_status"], len(detections))
+            if inspection.get("segment_id") is not None and contract_payload["is_enforceable"]
+            else None
+        ),
     }
 
 
@@ -702,7 +775,7 @@ def get_notice_context(*, db: sqlite3.Connection, inspection_id: int) -> tuple[d
             rs.ward_id,
             rs.zone_id
         FROM inspection_events ie
-        JOIN road_segments rs ON ie.segment_id = rs.id
+        LEFT JOIN road_segments rs ON ie.segment_id = rs.id
         WHERE ie.id = ?
         """,
         (inspection_id,),
@@ -721,6 +794,8 @@ def get_notice_context(*, db: sqlite3.Connection, inspection_id: int) -> tuple[d
     inspection["image_path"] = image_path
     if inspection["pipeline_status"] != "SUCCEEDED":
         raise HTTPException(404, f"Inspection event {inspection_id} does not have a noticeable detection result.")
+    if inspection["segment_id"] is None or not inspection["contract_id_snapshot"] or not inspection["is_dlp_active_snapshot"]:
+        raise HTTPException(404, f"Inspection event {inspection_id} is not eligible for notice generation.")
 
     detection_rows = db.execute(
         """
