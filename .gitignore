@@ -3,6 +3,7 @@
 .venv/
 .agents/
 .streamlit/
+.zcode/
 
 # Python and runtime caches
 __pycache__/
