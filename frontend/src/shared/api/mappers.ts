@@ -1,11 +1,22 @@
 import {
   BackendDetailResponse,
   BackendDetection,
+  BackendDismissedCluster,
+  BackendRawSubmission,
+  BackendRoadSegment,
+  BackendSegmentCase,
+  BackendSegmentDetailResponse,
   BackendSegmentHistoryItem,
+  BackendSegmentMatch,
   BackendSeverity,
+  BackendSubmissionCluster,
   BackendSummaryRow,
+  BackendContractSummary,
 } from './contracts';
-import { DLPStatus, DetectionBox, RoadCase, Severity, SegmentHistoryItem, SubmissionSource } from '../types/app';
+import {
+  ContractSummary, DLPStatus, DetectionBox, RawSubmission, RoadCase, RoadSegment,
+  SegmentHistoryItem, SegmentMatch, Severity, SubmissionCluster, SubmissionSource,
+} from '../types/app';
 import { getApiBase } from './client';
 
 export function toSeverity(level: BackendSeverity): Severity {
@@ -223,4 +234,105 @@ export function fromDetail(detail: BackendDetailResponse, baseCase?: RoadCase): 
     detections: normalizeDetections(detail.detections),
     segmentHistory: normalizeHistory(detail.segment_history),
   });
+}
+
+export function fromRawSubmissionResponse(row: BackendRawSubmission): RawSubmission {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    imageUrl: row.image_url.startsWith('/uploads/') ? `${getApiBase()}${row.image_url}` : row.image_url,
+    lat: row.lat,
+    lng: row.lng,
+    exifLat: row.exif_lat,
+    exifLng: row.exif_lng,
+    exifTimestamp: row.exif_timestamp,
+    gpsMismatchFlag: row.gps_mismatch_flag,
+    clusterId: row.cluster_id,
+    status: row.status,
+    submittedAt: row.submitted_at,
+    source: row.source as SubmissionSource,
+  };
+}
+
+export function fromSegmentMatchResponse(row: BackendSegmentMatch): SegmentMatch {
+  return {
+    segmentId: row.segment_id,
+    segmentName: row.segment_name,
+    contractorName: row.contractor_name,
+    isDlpActive: row.is_dlp_active,
+  };
+}
+
+export function fromClusterResponse(row: BackendSubmissionCluster): SubmissionCluster {
+  return {
+    id: row.id,
+    centerLat: row.center_lat,
+    centerLng: row.center_lng,
+    submissionCount: row.submission_count,
+    firstSubmittedAt: row.first_submitted_at,
+    lastSubmittedAt: row.last_submitted_at,
+    sourceTypes: row.source_types as SubmissionSource[],
+    submissions: row.submissions.map(fromRawSubmissionResponse),
+    segmentMatches: row.segment_matches.map(fromSegmentMatchResponse),
+  };
+}
+
+export function fromDismissedClusterResponse(row: BackendDismissedCluster) {
+  return {
+    cluster: fromClusterResponse(row.cluster),
+    reason: row.reason,
+    dismissedAt: row.dismissed_at,
+  };
+}
+
+export function fromContractSummaryResponse(row: BackendContractSummary): ContractSummary {
+  return {
+    id: row.id,
+    contractorName: row.contractor_name,
+    contractorEmail: row.contractor_email,
+    dlpEndDate: row.dlp_end_date,
+    isDlpActive: row.is_dlp_active,
+    contractValue: row.contract_value,
+    createdAt: row.created_at,
+  };
+}
+
+export function fromSegmentResponse(row: BackendRoadSegment): RoadSegment {
+  return {
+    id: row.id,
+    name: row.name,
+    wardId: row.ward_id,
+    zoneId: row.zone_id,
+    bbox: {
+      minLat: row.bbox.min_lat,
+      maxLat: row.bbox.max_lat,
+      minLng: row.bbox.min_lng,
+      maxLng: row.bbox.max_lng,
+    },
+    activeContract: row.active_contract ? fromContractSummaryResponse(row.active_contract) : null,
+    contractHistory: row.contract_history.map(fromContractSummaryResponse),
+    caseCount: row.case_count,
+  };
+}
+
+function fromSegmentCaseResponse(row: BackendSegmentCase): RoadCase {
+  return mergeCase({}, {
+    inspectionId: row.inspection_id,
+    id: row.id,
+    severity: toSeverity(row.severity),
+    evidenceUrl: row.image_url ? `${getApiBase()}${row.image_url}` : placeholderEvidence(row.road_segment),
+    roadSegment: row.road_segment,
+    recommendation: row.recommendation,
+    created: row.created,
+    status: row.status,
+    defectClass: describeDefect(row.severity === 'NONE' ? 0 : 1, row.severity, 'SUCCEEDED', null),
+    source: 'manual_upload',
+  });
+}
+
+export function fromSegmentDetailResponse(row: BackendSegmentDetailResponse): { segment: RoadSegment; cases: RoadCase[] } {
+  return {
+    segment: fromSegmentResponse(row.segment),
+    cases: row.cases.map(fromSegmentCaseResponse),
+  };
 }

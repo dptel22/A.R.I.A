@@ -1,27 +1,24 @@
-import { BackendDetectResponse, BackendDetailResponse, BackendHealth, BackendSummaryResponse } from './contracts';
+import {
+  BackendDetectResponse, BackendDetailResponse, BackendDismissedCluster, BackendHealth,
+  BackendRoadSegment, BackendSegmentDetailResponse, BackendSubmissionCluster, BackendSummaryResponse,
+} from './contracts';
 import { apiFetch, fetchBinary, getApiBase } from './client';
 import {
-  describeDefect, fromDetail, fromSummary, mergeCase,
+  describeDefect, fromClusterResponse, fromDetail, fromDismissedClusterResponse,
+  fromSegmentDetailResponse, fromSegmentResponse, fromSummary, mergeCase,
   normalizeDetections, placeholderEvidence, toCaseId, toRunId, toSeverity,
 } from './mappers';
 import { RoadCase, RoadSegment, SubmissionCluster } from '../types/app';
 import {
   DismissReason,
-  mockDismissCluster,
   mockFetchCaseDetail,
-  mockFetchClusterDetail,
-  mockFetchClusters,
-  mockFetchSegmentDetail,
-  mockFetchSegments,
-  mockGetDismissed,
-  mockPromoteCluster,
 } from './mockClient';
 
 /**
  * Toggle to swap new Intake + Segments endpoints between mock and real backend.
  * Set to false once the backend implements the section 5 endpoints.
  */
-const USE_MOCKS = true;
+const USE_MOCKS = false;
 
 /* ─────────────────────────────────────────
    Existing production endpoints (unchanged)
@@ -115,26 +112,24 @@ export async function openNoticePdf(inspectionId: number): Promise<void> {
    New endpoints — gated behind USE_MOCKS
 ───────────────────────────────────────── */
 export async function fetchClusters(): Promise<SubmissionCluster[]> {
-  if (USE_MOCKS) return mockFetchClusters();
-  return apiFetch<SubmissionCluster[]>('/intake/clusters');
+  const response = await apiFetch<BackendSubmissionCluster[]>('/intake/clusters');
+  return response.map(fromClusterResponse);
 }
 
 export async function fetchClusterDetail(id: number): Promise<SubmissionCluster> {
-  if (USE_MOCKS) return mockFetchClusterDetail(id);
-  return apiFetch<SubmissionCluster>(`/intake/clusters/${id}`);
+  const response = await apiFetch<BackendSubmissionCluster>(`/intake/clusters/${id}`);
+  return fromClusterResponse(response);
 }
 
-export async function promoteCluster(id: number, segmentId: number): Promise<void> {
-  if (USE_MOCKS) return mockPromoteCluster(id, segmentId);
+export async function promoteCluster(id: number, segmentId: number | null): Promise<void> {
   return apiFetch<void>(`/intake/clusters/${id}/promote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ segmentId }),
+    body: JSON.stringify({ segment_id: segmentId }),
   });
 }
 
 export async function dismissCluster(id: number, reason: DismissReason): Promise<void> {
-  if (USE_MOCKS) return mockDismissCluster(id, reason);
   return apiFetch<void>(`/intake/clusters/${id}/dismiss`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -142,22 +137,25 @@ export async function dismissCluster(id: number, reason: DismissReason): Promise
   });
 }
 
-export { mockGetDismissed };
+export async function fetchDismissedClusters(): Promise<ReturnType<typeof fromDismissedClusterResponse>[]> {
+  const response = await apiFetch<BackendDismissedCluster[]>('/intake/dismissed');
+  return response.map(fromDismissedClusterResponse);
+}
 
 export async function fetchMockCaseDetail(inspectionId: number): Promise<RoadCase> {
   return mockFetchCaseDetail(inspectionId);
 }
 
 export async function fetchSegments(): Promise<RoadSegment[]> {
-  if (USE_MOCKS) return mockFetchSegments();
-  return apiFetch<RoadSegment[]>('/segments');
+  const response = await apiFetch<BackendRoadSegment[]>('/segments');
+  return response.map(fromSegmentResponse);
 }
 
 export async function fetchSegmentDetail(
   id: number,
 ): Promise<{ segment: RoadSegment; cases: RoadCase[] }> {
-  if (USE_MOCKS) return mockFetchSegmentDetail(id);
-  return apiFetch<{ segment: RoadSegment; cases: RoadCase[] }>(`/segments/${id}`);
+  const response = await apiFetch<BackendSegmentDetailResponse>(`/segments/${id}`);
+  return fromSegmentDetailResponse(response);
 }
 
 export { getApiBase } from './client';

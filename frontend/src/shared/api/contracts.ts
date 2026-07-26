@@ -109,3 +109,84 @@ export interface BackendDetectResponse {
   recommendation: Decision;
   notice_url: string | null;
 }
+
+export interface BackendRawSubmission {
+  id: number;
+  batch_id: number;
+  image_url: string;
+  lat: number;
+  lng: number;
+  exif_lat: number | null;
+  exif_lng: number | null;
+  exif_timestamp: string | null;
+  gps_mismatch_flag: boolean;
+  cluster_id: number | null;
+  status: 'unreviewed' | 'promoted' | 'dismissed';
+  submitted_at: string;
+  source: 'citizen_submission' | 'roadcam_survey' | 'manual_upload';
+}
+
+export interface BackendSegmentMatch {
+  segment_id: number;
+  segment_name: string;
+  contract_id: number | null;
+  contractor_name: string;
+  contractor_email: string | null;
+  dlp_end_date: string | null;
+  is_dlp_active: boolean;
+}
+
+export interface BackendSubmissionCluster {
+  id: number;
+  center_lat: number;
+  center_lng: number;
+  submission_count: number;
+  first_submitted_at: string;
+  last_submitted_at: string;
+  source_types: ('citizen_submission' | 'roadcam_survey' | 'manual_upload')[];
+  submissions: BackendRawSubmission[];
+  segment_matches: BackendSegmentMatch[];
+}
+
+export interface BackendDismissedCluster {
+  cluster: BackendSubmissionCluster;
+  reason: 'spam' | 'duplicate' | 'not_a_road_defect' | 'other';
+  dismissed_at: string;
+}
+
+export interface BackendContractSummary {
+  id: number;
+  contractor_name: string;
+  contractor_email: string;
+  dlp_end_date: string | null;
+  is_dlp_active: boolean;
+  contract_value?: number | null;
+  created_at: string;
+}
+
+export interface BackendRoadSegment {
+  id: number;
+  name: string;
+  ward_id: string;
+  zone_id: string;
+  bbox: { min_lat: number; max_lat: number; min_lng: number; max_lng: number };
+  active_contract: BackendContractSummary | null;
+  contract_history: BackendContractSummary[];
+  case_count: number;
+}
+
+export interface BackendSegmentCase {
+  id: string;
+  inspection_id: number;
+  road_segment: string;
+  severity: BackendSeverity;
+  status: 'Awaiting Review' | 'Approved' | 'Escalated' | 'Dismissed';
+  created: string;
+  recommendation: Decision;
+  image_url: string | null;
+}
+
+export interface BackendSegmentDetailResponse {
+  segment: BackendRoadSegment;
+  cases: BackendSegmentCase[];
+}

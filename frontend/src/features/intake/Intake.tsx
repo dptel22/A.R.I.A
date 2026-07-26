@@ -4,7 +4,7 @@ import {
   Crosshair, LoaderCircle, MapPin, Radio, Users, X,
 } from 'lucide-react';
 import {
-  dismissCluster, fetchClusters, mockGetDismissed, promoteCluster,
+  dismissCluster, fetchClusters, fetchDismissedClusters, promoteCluster,
 } from '../../shared/api';
 import { DismissReason } from '../../shared/api/mockClient';
 import { formatDate, sourceLabel } from '../../shared/lib/caseDisplay';
@@ -181,6 +181,7 @@ function PromoteModal({
   onCancel: () => void;
   loading: boolean;
 }) {
+  const noMatch = cluster.segmentMatches.length === 0;
   const seg = cluster.segmentMatches.find((m) => m.segmentId === selectedSegmentId);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-6">
@@ -192,16 +193,16 @@ function PromoteModal({
         <div className="surface-nested p-4 rounded-sm space-y-2 text-xs">
           <div className="flex justify-between">
             <span className="text-ink-soft">Segment</span>
-            <span className="font-medium text-ink">{seg?.segmentName}</span>
+            <span className="font-medium text-ink">{noMatch ? 'No mapped segment' : seg?.segmentName}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-ink-soft">Contractor</span>
-            <span className="font-medium text-ink">{seg?.contractorName}</span>
+            <span className="font-medium text-ink">{noMatch ? 'No contract on file' : seg?.contractorName}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-ink-soft">DLP Active</span>
-            <span className={`badge ${seg?.isDlpActive ? 'badge-dlp' : 'badge-none'}`}>
-              {seg?.isDlpActive ? 'Active' : 'Expired'}
+            <span className={`badge ${!noMatch && seg?.isDlpActive ? 'badge-dlp' : 'badge-none'}`}>
+              {!noMatch && seg?.isDlpActive ? 'Active' : 'None'}
             </span>
           </div>
           <div className="flex justify-between">
@@ -210,7 +211,9 @@ function PromoteModal({
           </div>
         </div>
         <p className="text-[10px] text-ink-soft">
-          This will create an inspection event for all submissions in this cluster, attached to the selected segment and contract.
+          {noMatch
+            ? 'No road segment matched these coordinates. This will create a no-contract inspection event requiring manual inspection — no enforcement notice will be generated.'
+            : 'This will create an inspection event for all submissions in this cluster, attached to the selected segment and contract.'}
         </p>
         <div className="flex justify-end gap-2 pt-2">
           <button className="btn-secondary text-xs" onClick={onCancel} disabled={loading}>Cancel</button>
@@ -220,7 +223,7 @@ function PromoteModal({
             disabled={loading}
           >
             {loading ? <LoaderCircle size={13} className="animate-spin" /> : null}
-            Confirm Promotion
+            {noMatch ? 'Promote as No-Contract Case' : 'Confirm Promotion'}
           </button>
         </div>
       </div>
@@ -240,7 +243,7 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const dismissed = mockGetDismissed();
+  const [dismissed, setDismissed] = useState<{ cluster: SubmissionCluster; reason: DismissReason; dismissedAt: string }[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -248,6 +251,9 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
       .then(setClusters)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load clusters.'))
       .finally(() => setLoading(false));
+    fetchDismissedClusters()
+      .then(setDismissed)
+      .catch(() => setDismissed([]));
   }, []);
 
   const selected = clusters.find((c) => c.id === selectedId) ?? null;
@@ -268,8 +274,12 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
     setActionLoading(true);
     try {
       await dismissCluster(selectedId, reason);
-      const refreshed = await fetchClusters();
-      setClusters(refreshed);
+      const [refreshedClusters, refreshedDismissed] = await Promise.all([
+        fetchClusters(),
+        fetchDismissedClusters().catch(() => dismissed),
+      ]);
+      setClusters(refreshedClusters);
+      setDismissed(refreshedDismissed);
       setSelectedId(null);
     } finally {
       setActionLoading(false);
@@ -278,10 +288,12 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
   }
 
   async function handlePromote() {
-    if (!selectedId || !selectedSegmentId) return;
+    if (!selectedId || !selected) return;
+    const noMatch = selected.segmentMatches.length === 0;
+    if (!noMatch && selectedSegmentId === null) return;
     setActionLoading(true);
     try {
-      await promoteCluster(selectedId, selectedSegmentId);
+      await promoteCluster(selectedId, noMatch ? null : selectedSegmentId);
       const refreshed = await fetchClusters();
       setClusters(refreshed);
       setSelectedId(null);
@@ -304,8 +316,7 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
   }
 
   const canPromote = selected !== null && (
-    selected.segmentMatches.length === 0 ? false :
-    selected.segmentMatches.length === 1 ? true :
+    selected.segmentMatches.length <= 1 ? true :
     selectedSegmentId !== null
   );
 
@@ -495,7 +506,7 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
               <div className="text-[9px] font-bold uppercase tracking-widest text-ink-soft mb-3">Segment Matches</div>
               {selected.segmentMatches.length === 0 ? (
                 <div className="surface-nested p-4 text-xs text-ink-soft rounded-sm">
-                  No road segment matched this cluster's coordinates. You may still dismiss it.
+                  No road segment matched this cluster's coordinates. You may promote it as a no-contract case for manual inspection, or dismiss it.
                 </div>
               ) : selected.segmentMatches.length === 1 ? (
                 <div className="surface-nested p-4 rounded-sm">
@@ -560,10 +571,10 @@ export default function Intake({ onSelectCase: _onSelectCase }: IntakeProps) {
           loading={actionLoading}
         />
       )}
-      {showPromoteModal && selected && selectedSegmentId && (
+      {showPromoteModal && selected && (selected.segmentMatches.length === 0 || selectedSegmentId !== null) && (
         <PromoteModal
           cluster={selected}
-          selectedSegmentId={selectedSegmentId}
+          selectedSegmentId={selected.segmentMatches.length === 0 ? -1 : selectedSegmentId}
           onConfirm={handlePromote}
           onCancel={() => setShowPromoteModal(false)}
           loading={actionLoading}
