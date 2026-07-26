@@ -15,6 +15,8 @@ __pycache__/
 api-test-*.db
 api-test-*.db-wal
 api-test-*.db-shm
+intake-test-*
+intake-legacy-*
 
 # Generated artifacts
 frontend/dist/

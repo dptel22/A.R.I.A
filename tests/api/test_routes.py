@@ -84,9 +84,9 @@ def _cleanup_sqlite_files(db_path: Path) -> None:
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch):
+def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     unique_id = uuid.uuid4().hex
-    base_dir = Path.cwd()
+    base_dir = tmp_path
     db_path = base_dir / f"api-test-{unique_id}.db"
     upload_dir = base_dir / f"api-test-uploads-{unique_id}"
     upload_dir.mkdir(exist_ok=True)
@@ -438,9 +438,9 @@ def test_contracts_allow_repeat_awards_for_same_contractor_on_same_segment(clien
     assert count == 2
 
 
-def test_init_db_migrates_legacy_contract_uniqueness_and_preserves_rows():
+def test_init_db_migrates_legacy_contract_uniqueness_and_preserves_rows(tmp_path: Path):
     unique_id = uuid.uuid4().hex
-    db_path = Path.cwd() / f"legacy-contracts-{unique_id}.db"
+    db_path = tmp_path / f"legacy-contracts-{unique_id}.db"
     con = sqlite3.connect(str(db_path))
     try:
         with con:
