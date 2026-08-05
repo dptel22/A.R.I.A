@@ -11,6 +11,8 @@ __pycache__/
 .python-runtime/
 .pytest_tmp/
 .yolo-config/
+.label-studio-data/
+label-studio/
 
 # Local databases and test artifacts
 api-test-*.db
@@ -24,6 +26,7 @@ frontend/dist/
 runtime/
 data/demo/blr_potholes/images/
 data/demo/blr_potholes/predictions/
+data/demo/blr_potholes/label_studio_tasks.jsonl
 
 # Secrets and logs
 .env

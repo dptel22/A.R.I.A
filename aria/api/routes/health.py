@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
 
 router = APIRouter()
+
+
+@router.get("/")
+def root():
+    return RedirectResponse(url="/docs")
 
 
 @router.get("/health")
@@ -14,3 +20,4 @@ def health(request: Request) -> dict[str, object]:
         "model": model_info,
         "version": "1.0.0",
     }
+
