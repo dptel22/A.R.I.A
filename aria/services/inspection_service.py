@@ -422,22 +422,16 @@ def process_detection(
         raise HTTPException(422, f"Invalid longitude: {lng}")
 
     segment = _find_segment(db, lat, lng)
-    if not segment:
-        raise HTTPException(
-            404,
-            {
-                "detail": "No mapped road segment found at these coordinates.",
-                "lat": lat,
-                "lng": lng,
-                "suggestion": "This location is not in the road-segment database. Contact your administrator to add coverage for this area.",
-            },
-        )
-
+    # The mapped road segment is an enrichment, not a gate: unmapped GPS still
+    # runs the full pipeline and persists with segment_id=None. Notice/enforcement
+    # gating stays downstream (get_notice_context requires segment_id is not None
+    # and a DLP-active contract snapshot).
     contract = None
-    try:
-        contract = _find_contract(db, segment["id"])
-    except Exception as exc:
-        log.warning("Contract lookup failed for segment %s: %s", segment["id"], exc)
+    if segment is not None:
+        try:
+            contract = _find_contract(db, segment["id"])
+        except Exception as exc:
+            log.warning("Contract lookup failed for segment %s: %s", segment["id"], exc)
     contract_snapshot = _contract_snapshot(contract)
 
     saved_image_path: str | None = None
@@ -449,7 +443,7 @@ def process_detection(
     pipeline_result = run_pipeline(img_bytes, model)
     inspection_id = _persist_inspection(
         db,
-        segment_id=segment["id"],
+        segment_id=segment["id"] if segment else None,
         lat=lat,
         lng=lng,
         image_path=saved_image_path,
@@ -473,9 +467,9 @@ def process_detection(
             if detections
             else "Image processed. No road damage detected."
         ),
-        "road_segment": segment["name"],
-        "ward_id": segment["ward_id"],
-        "zone_id": segment["zone_id"],
+        "road_segment": segment["name"] if segment else "UNMAPPED",
+        "ward_id": segment["ward_id"] if segment else "UNKNOWN",
+        "zone_id": segment["zone_id"] if segment else "UNKNOWN",
         "lat": lat,
         "lng": lng,
         "total_detections": len(detections),
@@ -496,8 +490,13 @@ def process_detection(
             highest_severity,
             contract_payload["is_dlp_active"],
             pipeline_result.status,
+            has_contract=bool(contract_payload["contract_id"]),
         ),
-        "notice_url": _notice_url_for(inspection_id, pipeline_result.status, len(detections)),
+        "notice_url": (
+            _notice_url_for(inspection_id, pipeline_result.status, len(detections))
+            if segment is not None and contract_payload["is_enforceable"]
+            else None
+        ),
     }
 
 

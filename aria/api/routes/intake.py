@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from typing import Literal
 
@@ -38,18 +39,25 @@ def get_cluster(
 
 
 @router.post("/intake/clusters/{cluster_id}/promote")
-def promote_cluster(
+async def promote_cluster(
     cluster_id: int,
     body: PromoteRequest,
     request: Request,
     _key: str = Depends(get_api_key),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    return intake_service.promote_cluster(
-        db=db,
-        model=request.app.state.model,
-        cluster_id=cluster_id,
-        segment_id=body.segment_id,
+    # Promotion re-runs the heavy YOLO pipeline over every cluster submission;
+    # keep it off the event loop.
+    model = request.app.state.model
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: intake_service.promote_cluster(
+            db=db,
+            model=model,
+            cluster_id=cluster_id,
+            segment_id=body.segment_id,
+        ),
     )
 
 

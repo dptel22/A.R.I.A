@@ -7,7 +7,9 @@ run inference, return a list of raw detection dicts.
 from __future__ import annotations
 
 import logging
+import math
 import os
+import threading
 from typing import Any
 
 import numpy as np
@@ -34,19 +36,41 @@ EXPECTED_CLASS_NAMES: set[str] = {
 }
 
 def _float_env(name: str, default: float) -> float:
+    """Read a float env var, falling back/clamping to the ``(0, 1]`` range.
+
+    ``ARIA_MODEL_CONF`` and ``ARIA_MODEL_IOU`` are passed straight to YOLO as
+    confidence/IOU thresholds, which must be ``> 0`` and ``<= 1``.  Values
+    above ``1`` are clamped to ``1.0``; values ``<= 0``, NaN, or unparseable
+    fall back to *default*.  Every deviation is logged so misconfiguration is
+    visible at startup.
+    """
     raw = os.environ.get(name)
     if raw is None:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError:
         log.warning("Invalid %s=%r; using %.2f", name, raw, default)
         return default
+    if value > 1.0:
+        log.warning("%s=%r out of range (0, 1]; clamping to 1.0", name, raw)
+        return 1.0
+    if value <= 0.0 or math.isnan(value) or math.isinf(value):
+        log.warning("%s=%r out of range (0, 1]; using %.2f", name, raw, default)
+        return default
+    return value
 
 
 CONF_THRESHOLD: float = _float_env("ARIA_MODEL_CONF", 0.12)
 IOU_THRESHOLD: float = _float_env("ARIA_MODEL_IOU", 0.45)
 TEST_TIME_AUGMENT: bool = os.environ.get("ARIA_MODEL_AUGMENT", "false").lower() in {"1", "true", "yes", "on"}
+
+# Serializes model.predict() across request threads.  Ultralytics mutates
+# shared state on the model object (self.predictor, self.dataset, ...) and each
+# CPU forward is itself multi-threaded, so concurrent predicts race and
+# oversubscribe the CPU.  A single lock caps inference at 1, which is the right
+# budget for this CPU demo host.
+_PREDICT_LOCK: threading.Lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +111,9 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
     Run YOLO inference on a numpy image array.
 
     Args:
-        img_array: RGB image as ``np.ndarray`` with shape ``(H, W, 3)``.
+        img_array: BGR image as np.ndarray (Ultralytics numpy convention).
+            Ultralytics treats numpy HWC sources as OpenCV-compatible BGR, so
+            callers must hand in BGR (see ``aria.inference.preprocess``).
         model: A loaded Ultralytics YOLO model object.
 
     Returns:
@@ -101,20 +127,21 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
     """
     if img_array is None or img_array.ndim != 3 or img_array.shape[2] != 3:
         raise ValueError(
-            f"Expected (H, W, 3) RGB numpy array, "
+            f"Expected (H, W, 3) BGR numpy array, "
             f"got {'None' if img_array is None else img_array.shape}"
         )
 
     class_names = _resolve_class_names(model)
 
-    results = model.predict(
-        source=img_array,
-        conf=CONF_THRESHOLD,
-        iou=IOU_THRESHOLD,
-        augment=TEST_TIME_AUGMENT,
-        verbose=False,
-        imgsz=640,
-    )
+    with _PREDICT_LOCK:
+        results = model.predict(
+            source=img_array,
+            conf=CONF_THRESHOLD,
+            iou=IOU_THRESHOLD,
+            augment=TEST_TIME_AUGMENT,
+            verbose=False,
+            imgsz=640,
+        )
 
     # Guard: no results or no boxes
     if not results or results[0].boxes is None or len(results[0].boxes) == 0:

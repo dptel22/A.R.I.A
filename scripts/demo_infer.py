@@ -2,12 +2,23 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import cv2
 from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from aria.inference.detector import (  # noqa: E402
+    CONF_THRESHOLD,
+    IOU_THRESHOLD,
+    TEST_TIME_AUGMENT,
+)
+from aria.inference.preprocess import preprocess as shared_preprocess  # noqa: E402
+
 IMAGES_DIR = ROOT / "data" / "demo" / "blr_potholes" / "images"
 PREDICTIONS_DIR = ROOT / "data" / "demo" / "blr_potholes" / "predictions"
 MODEL_CANDIDATES = (
@@ -28,34 +39,6 @@ def resolve_model_path() -> Path:
     raise FileNotFoundError(f"Model not found. Checked: {candidates}")
 
 
-def letterbox(image, size: int = 640):
-    height, width = image.shape[:2]
-    scale = min(size / width, size / height)
-    resized_width = int(round(width * scale))
-    resized_height = int(round(height * scale))
-
-    resized = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
-    output = cv2.copyMakeBorder(
-        resized,
-        top=(size - resized_height) // 2,
-        bottom=size - resized_height - ((size - resized_height) // 2),
-        left=(size - resized_width) // 2,
-        right=size - resized_width - ((size - resized_width) // 2),
-        borderType=cv2.BORDER_CONSTANT,
-        value=(0, 0, 0),
-    )
-    return output
-
-
-def apply_clahe_lab(image):
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l_channel, a_channel, b_channel = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    normalized_l = clahe.apply(l_channel)
-    normalized_lab = cv2.merge((normalized_l, a_channel, b_channel))
-    return cv2.cvtColor(normalized_lab, cv2.COLOR_LAB2BGR)
-
-
 def crop_bottom_80_percent(image):
     height = image.shape[0]
     start_y = int(round(height * 0.20))
@@ -63,8 +46,9 @@ def crop_bottom_80_percent(image):
 
 
 def preprocess(image, crop: bool = False):
-    image = letterbox(image, size=640)
-    image = apply_clahe_lab(image)
+    # cv2.imread() returns BGR — declare it explicitly so the shared path
+    # preserves BGR for model.predict() (Ultralytics expects BGR numpy input).
+    image = shared_preprocess(image, color_order="bgr")
     if crop:
         image = crop_bottom_80_percent(image)
     return image
@@ -127,10 +111,10 @@ def main() -> None:
         preprocessed = preprocess(image, crop=args.crop)
         results = model.predict(
             source=preprocessed,
-            conf=0.12,
-            iou=0.45,
+            conf=CONF_THRESHOLD,
+            iou=IOU_THRESHOLD,
             imgsz=640,
-            augment=True,
+            augment=TEST_TIME_AUGMENT,
             verbose=False,
         )
         result = results[0]

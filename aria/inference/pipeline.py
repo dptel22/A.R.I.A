@@ -15,6 +15,7 @@ import numpy as np
 from PIL import Image, UnidentifiedImageError
 
 from aria.inference.detector import detect
+from aria.inference.preprocess import preprocess
 from aria.inference.severity_calc import score
 
 log: logging.Logger = logging.getLogger(__name__)
@@ -48,7 +49,13 @@ def run_pipeline(img_bytes: bytes, model: Any) -> PipelineResult:
 
     try:
         img_pil = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        img_array = np.array(img_pil)
+        # Ultralytics treats numpy HWC sources as OpenCV-compatible BGR, so we
+        # convert once from the PIL RGB decode and keep the whole pipeline in
+        # BGR.  CLAHE's L channel is order-independent, so this yields exactly
+        # the same pixels the demo script feeds to model.predict().
+        img_array = np.ascontiguousarray(np.array(img_pil)[:, :, ::-1])
+        # Shared train/inference preprocess path (letterbox + CLAHE-LAB).
+        img_array = preprocess(img_array, color_order="bgr")
 
         raw_detections = detect(img_array, model)
         if not raw_detections:

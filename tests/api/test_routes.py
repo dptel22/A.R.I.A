@@ -139,6 +139,42 @@ def test_health_reports_model_artifact_details(client):
     assert payload["model"]["path"].endswith("missing-model.pt")
 
 
+def test_health_reports_not_ready_when_model_missing(client):
+    test_client, _, _ = client
+
+    response = test_client.get("/health")
+
+    assert response.status_code == 200  # liveness stays 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["ready"] is False
+    assert payload["model_loaded"] is False
+
+
+def test_ready_returns_503_when_model_not_loaded(client):
+    test_client, _, _ = client
+
+    response = test_client.get("/ready")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["status"] == "not_ready"
+
+
+def test_ready_returns_200_when_model_loaded(client):
+    test_client, _, _ = client
+    test_client.app.state.model = DummyModel()
+
+    response = test_client.get("/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is True
+    assert payload["model_loaded"] is True
+    assert payload["status"] == "ok"
+
+
 def _insert_inspection_with_detection(db_path: Path, *, contractor_name: str, contractor_email: str) -> int:
     con = get_connection(str(db_path))
     con.row_factory = sqlite3.Row
@@ -353,11 +389,116 @@ def test_detect_success_masks_response_and_snapshots_raw_contract(client, monkey
     payload = response.json()
     assert payload["contract"]["contractor_email"] == "l***@infra.test"
     assert payload["recommendation"] == "Block Payment"
+    # F3: a mapped + DLP-active contract detection is notice-eligible.
+    assert payload["notice_url"] == f"/api/v1/notices/{payload['inspection_id']}"
 
     rows = _load_inspection_rows(db_path)
     assert rows[0]["pipeline_status"] == "SUCCEEDED"
     assert rows[0]["contractor_email_snapshot"] == "legacy@infra.test"
     assert rows[0]["contractor_name_snapshot"] == "Legacy Infra"
+
+
+def test_detect_unmapped_coordinates_runs_detection_not_404(client, monkeypatch):
+    test_client, db_path, _ = client
+    routes_module = sys.modules["aria.services.inspection_service"]
+    test_client.app.state.model = DummyModel()
+    monkeypatch.setattr(
+        routes_module,
+        "run_pipeline",
+        lambda img_bytes, model: PipelineResult(
+            status="SUCCEEDED",
+            detections=[
+                {
+                    "class_name": "pothole",
+                    "confidence": 0.92,
+                    "bbox_x": 0.5,
+                    "bbox_y": 0.5,
+                    "bbox_w": 0.2,
+                    "bbox_h": 0.2,
+                    "severity_score": 8.0,
+                    "severity_level": "CRITICAL",
+                }
+            ],
+        ),
+    )
+
+    response = test_client.post(
+        "/api/v1/detect",
+        headers=_auth_headers(),
+        data={"lat": "13.5", "lng": "78.2"},  # far outside the seeded segment
+        files={"file": ("good.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pipeline_status"] == "SUCCEEDED"
+    assert payload["road_segment"] == "UNMAPPED"
+    assert payload["ward_id"] == "UNKNOWN"
+    assert payload["zone_id"] == "UNKNOWN"
+    assert payload["contract"]["status"] == "NO_CONTRACT"
+    assert payload["recommendation"] == "Escalate Manual Inspection"
+    assert payload["notice_url"] is None
+
+    rows = _load_inspection_rows(db_path)
+    assert len(rows) == 1
+    assert rows[0]["segment_id"] is None
+    assert rows[0]["pipeline_status"] == "SUCCEEDED"
+
+
+def _insert_unmapped_inspection_with_detection(db_path: Path) -> int:
+    con = get_connection(str(db_path))
+    con.row_factory = sqlite3.Row
+    try:
+        with con:
+            cur = con.execute(
+                """
+                INSERT INTO inspection_events (
+                    segment_id, lat, lng, pipeline_status,
+                    contract_id_snapshot, contractor_name_snapshot,
+                    contractor_email_snapshot, dlp_end_date_snapshot,
+                    is_dlp_active_snapshot
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (None, 13.5, 78.2, "SUCCEEDED", None, None, None, None, 0),
+            )
+            inspection_id = int(cur.lastrowid)
+            con.execute(
+                """
+                INSERT INTO detections (
+                    inspection_event_id, class_name, confidence,
+                    bbox_x, bbox_y, bbox_w, bbox_h, severity_score, severity_level
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (inspection_id, "pothole", 0.9, 0.5, 0.5, 0.25, 0.25, 8.0, "CRITICAL"),
+            )
+        return inspection_id
+    finally:
+        con.close()
+
+
+def test_detection_summary_and_detail_handle_unmapped_segment(client):
+    test_client, db_path, _ = client
+    inspection_id = _insert_unmapped_inspection_with_detection(db_path)
+
+    list_response = test_client.get("/api/v1/detections", headers=_auth_headers())
+    assert list_response.status_code == 200
+    item = next(
+        item for item in list_response.json()["results"]
+        if item["inspection_id"] == inspection_id
+    )
+    assert item["road_name"] == "No mapped segment"
+    assert item["ward_id"] == "UNKNOWN"
+    assert item["zone_id"] == "UNKNOWN"
+    assert item["notice_url"] is None
+
+    detail_response = test_client.get(f"/api/v1/detections/{inspection_id}", headers=_auth_headers())
+    assert detail_response.status_code == 200
+    payload = detail_response.json()
+    assert payload["road_segment"] == "No mapped segment"
+    assert payload["ward_id"] == "UNKNOWN"
+    assert payload["zone_id"] == "UNKNOWN"
+    assert payload["notice_url"] is None
+    assert payload["segment_history"] == []
 
 
 def test_detections_reports_total_matching_separately_from_page_size(client):

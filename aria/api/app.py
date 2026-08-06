@@ -71,7 +71,10 @@ async def lifespan(app: FastAPI):
             log.info("Loading YOLO model from %s ...", _MODEL_PATH)
             model = YOLO(_MODEL_PATH)
 
-            dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+            # Warm up with the same preprocessed path real requests use, so the
+            # first request doesn't pay letterbox + CLAHE cold-start.
+            from aria.inference.preprocess import preprocess
+            dummy = preprocess(np.zeros((640, 640, 3), dtype=np.uint8), color_order="bgr")
             model.predict(source=dummy, conf=0.25, verbose=False)
             model_info = _model_info(loaded=True, model=model)
             log.info(
