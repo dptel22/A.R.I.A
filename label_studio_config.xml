@@ -1,0 +1,11 @@
+<View>
+  <Image name="image" value="$image" zoom="true" zoomControl="true" rotateControl="true"/>
+  <RectangleLabels name="label" toName="image" strokeWidth="3" opacity="0.9">
+    <Label value="longitudinal_crack" background="#FF6B6B"/>
+    <Label value="transverse_crack" background="#4ECDC4"/>
+    <Label value="alligator_crack" background="#FFE66D"/>
+    <Label value="pothole" background="#95E1D3"/>
+  </RectangleLabels>
+  <!-- Metadata display for context -->
+  <Header value="Issue: $issue_number | UUID: $uuid | Coords: $lat, $long"/>
+</View>
