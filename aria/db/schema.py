@@ -131,6 +131,64 @@ _DDL: list[str] = [
     )
     """,
     # -----------------------------------------------------------------------
+    # contract_documents  (authoritative contract PDFs, versioned per contract)
+    # -----------------------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS contract_documents (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_id    INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+        version        INTEGER NOT NULL,                -- 1-based per contract
+        effective_from TEXT    NOT NULL,                -- ISO date this version applies from
+        superseded_at  TEXT,                            -- NULL while applicable
+        file_name      TEXT    NOT NULL,
+        file_hash      TEXT    NOT NULL UNIQUE,         -- SHA-256 hex digest
+        file_path      TEXT    NOT NULL,
+        status         TEXT    NOT NULL DEFAULT 'PROCESSING'
+                       CHECK (status IN ('PROCESSING', 'READY', 'FAILED')),
+        page_count     INTEGER,
+        error          TEXT,
+        created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        UNIQUE (contract_id, version)
+    )
+    """,
+    # -----------------------------------------------------------------------
+    # document_chunks  (parsed + embedded chunks of a contract document)
+    # -----------------------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS document_chunks (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id   INTEGER NOT NULL REFERENCES contract_documents(id) ON DELETE CASCADE,
+        chunk_index   INTEGER NOT NULL,
+        page          INTEGER NOT NULL,                 -- 1-based page number
+        section       TEXT,
+        clause        TEXT,
+        text          TEXT    NOT NULL,
+        embedding     BLOB,                           -- float32[768], NULL until embedded
+        UNIQUE (document_id, chunk_index)
+    )
+    """,
+    # -----------------------------------------------------------------------
+    # document_chunks_fts  (BM25 lexical retrieval over chunk text)
+    # -----------------------------------------------------------------------
+    """
+    CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts USING fts5(
+        text,
+        content='document_chunks',
+        content_rowid='id'
+    )
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS document_chunks_fts_ai AFTER INSERT ON document_chunks BEGIN
+        INSERT INTO document_chunks_fts(rowid, text) VALUES (new.id, new.text);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS document_chunks_fts_ad AFTER DELETE ON document_chunks BEGIN
+        INSERT INTO document_chunks_fts(document_chunks_fts, rowid, text)
+        VALUES ('delete', old.id, old.text);
+    END
+    """,
+    # -----------------------------------------------------------------------
     # notices
     # -----------------------------------------------------------------------
     """
@@ -141,6 +199,33 @@ _DDL: list[str] = [
         pdf_path            TEXT,        -- NULL for in-memory generation
         generated_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
         UNIQUE (inspection_event_id, contract_id)
+    )
+    """,
+    # -----------------------------------------------------------------------
+    # contract_requirements  (human-approved facts extracted from a contract
+    # document, used ONLY by the deterministic notice template. A row is not
+    # authoritative until an engineer sets status='approved'; the notice
+    # generator falls back to hard-coded literals otherwise.)
+    # -----------------------------------------------------------------------
+    """
+    CREATE TABLE IF NOT EXISTS contract_requirements (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_id     INTEGER NOT NULL REFERENCES contracts(id)       ON DELETE CASCADE,
+        document_id     INTEGER NOT NULL REFERENCES contract_documents(id) ON DELETE CASCADE,
+        field           TEXT    NOT NULL,   -- e.g. repair_hours / restoration_days / dlp_months
+                                            --      security_deposit_percent / blacklist_years
+                                            --      ld_per_day / max_ld_pct
+        value_text      TEXT    NOT NULL,
+        status          TEXT    NOT NULL DEFAULT 'proposed'
+                        CHECK (status IN ('proposed', 'approved', 'rejected')),
+        page            INTEGER NOT NULL,   -- 1-based source page
+        clause          TEXT,
+        quote           TEXT    NOT NULL,   -- verbatim supporting quote from the source chunk
+        source_chunk_id INTEGER NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+        created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        reviewed_at     TEXT,
+        reviewed_by     TEXT,               -- API-key hash for audit trail
+        UNIQUE (document_id, field)
     )
     """,
 ]
@@ -167,6 +252,12 @@ _INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_raw_submissions_batch ON raw_submissions(batch_id)",
     "CREATE INDEX IF NOT EXISTS idx_raw_submissions_promoted_inspection ON raw_submissions(promoted_inspection_id)",
     "CREATE INDEX IF NOT EXISTS idx_raw_submissions_submitted_at ON raw_submissions(submitted_at)",
+    # contract documents / chunks
+    "CREATE INDEX IF NOT EXISTS idx_cd_contract   ON contract_documents(contract_id)",
+    "CREATE INDEX IF NOT EXISTS idx_dc_document   ON document_chunks(document_id)",
+    # contract requirements
+    "CREATE INDEX IF NOT EXISTS idx_cr_contract   ON contract_requirements(contract_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cr_document   ON contract_requirements(document_id)",
 ]
 
 
@@ -179,6 +270,7 @@ _INSPECTION_EVENT_COLUMNS: dict[str, str] = {
     "dlp_end_date_snapshot": "ALTER TABLE inspection_events ADD COLUMN dlp_end_date_snapshot TEXT",
     "is_dlp_active_snapshot": "ALTER TABLE inspection_events ADD COLUMN is_dlp_active_snapshot INTEGER NOT NULL DEFAULT 0",
     "source_type": "ALTER TABLE inspection_events ADD COLUMN source_type TEXT NOT NULL DEFAULT 'manual_upload'",
+    "document_version_id": "ALTER TABLE inspection_events ADD COLUMN document_version_id INTEGER REFERENCES contract_documents(id) ON DELETE SET NULL",
 }
 
 

@@ -13,6 +13,7 @@ import {
 import { openNoticePdf } from '../../shared/api';
 import { formatDate, pipelineLabel, pipelineStatusClass } from '../../shared/lib/caseDisplay';
 import { RoadCase } from '../../shared/types/app';
+import ContractAssistant from './ContractAssistant';
 import DefectIcon from '../../shared/components/DefectIcon';
 
 interface CaseDetailProps {
@@ -288,6 +289,9 @@ export default function CaseDetail({ caseData, loading, onBack, onSelectRelatedC
                 )}
               </div>
             </section>
+
+            {/* Contract assistant (grounded Q&A, advisory only) */}
+            <ContractAssistant inspectionId={caseData.inspectionId} contractId={caseData.contractId} />
 
             {/* Prior flags */}
             <section>

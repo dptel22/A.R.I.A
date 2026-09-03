@@ -1,6 +1,7 @@
 import {
-  BackendDetectResponse, BackendDetailResponse, BackendDismissedCluster, BackendHealth,
-  BackendRoadSegment, BackendSegmentDetailResponse, BackendSubmissionCluster, BackendSummaryResponse,
+  BackendAskResponse, BackendContractDocument, BackendDetectResponse, BackendDetailResponse,
+  BackendDismissedCluster, BackendHealth, BackendRoadSegment, BackendSegmentDetailResponse,
+  BackendSubmissionCluster, BackendSummaryResponse,
 } from './contracts';
 import { apiFetch, fetchBinary, getApiBase } from './client';
 import {
@@ -159,3 +160,35 @@ export async function fetchSegmentDetail(
 }
 
 export { getApiBase } from './client';
+
+/* ─────────────────────────────────────────
+   Contract assistant (RAG)
+───────────────────────────────────────── */
+export async function askContractQuestion(
+  inspectionId: number,
+  question: string,
+): Promise<BackendAskResponse> {
+  return apiFetch<BackendAskResponse>(`/api/v1/detections/${inspectionId}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+}
+
+export async function fetchContractDocuments(contractId: number): Promise<BackendContractDocument[]> {
+  return apiFetch<BackendContractDocument[]>(`/api/v1/contracts/${contractId}/documents`);
+}
+
+export async function uploadContractDocument(
+  contractId: number,
+  file: File,
+  effectiveFrom?: string,
+): Promise<BackendContractDocument> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (effectiveFrom) formData.append('effective_from', effectiveFrom);
+  return apiFetch<BackendContractDocument>(`/api/v1/contracts/${contractId}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+}

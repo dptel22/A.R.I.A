@@ -190,3 +190,41 @@ export interface BackendSegmentDetailResponse {
   segment: BackendRoadSegment;
   cases: BackendSegmentCase[];
 }
+
+/* ─────────────────────────────────────────
+   Contract assistant (RAG)
+───────────────────────────────────────── */
+export interface BackendContractDocument {
+  document_id: number;
+  contract_id: number;
+  version: number;
+  effective_from: string;
+  superseded_at: string | null;
+  file_name: string;
+  file_hash: string;
+  status: 'PROCESSING' | 'READY' | 'FAILED';
+  page_count: number | null;
+  error: string | null;
+  created_at: string;
+  chunk_count?: number;
+}
+
+export interface BackendRagSource {
+  chunk_id: number;
+  page: number;
+  section: string | null;
+  clause: string | null;
+  quote: string;
+}
+
+export interface BackendAskResponse {
+  answer: string;
+  supported: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  sources: BackendRagSource[];
+  document: {
+    document_id: number;
+    version: number;
+    effective_from: string;
+  };
+}
