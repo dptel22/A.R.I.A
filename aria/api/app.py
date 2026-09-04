@@ -29,6 +29,7 @@ _MODEL_PATH: str = os.environ.get("ARIA_MODEL_PATH", "./models/aria_stage1.pt")
 _UPLOAD_ROOT: str = os.environ.get("ARIA_UPLOAD_DIR", "./runtime/uploads")
 _DB_PATH: str = os.environ.get("ARIA_DB_PATH", "./runtime/db/aria.db")
 _YOLO_CONFIG_DIR: str = os.environ.get("YOLO_CONFIG_DIR", "./runtime/ultralytics")
+_INFERENCE_DEVICE: str = os.environ.get("ARIA_INFERENCE_DEVICE", "cpu")
 _ALLOWED_ORIGINS: list[str] = [
     o.strip() for o in os.environ.get(
         "ARIA_ALLOWED_ORIGINS",
@@ -75,7 +76,7 @@ async def lifespan(app: FastAPI):
             # first request doesn't pay letterbox + CLAHE cold-start.
             from aria.inference.preprocess import preprocess
             dummy = preprocess(np.zeros((640, 640, 3), dtype=np.uint8), color_order="bgr")
-            model.predict(source=dummy, conf=0.25, verbose=False)
+            model.predict(source=dummy, conf=0.25, verbose=False, device=_INFERENCE_DEVICE)
             model_info = _model_info(loaded=True, model=model)
             log.info(
                 "Model loaded and warmed up. path=%s size=%s names=%s",

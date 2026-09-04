@@ -64,6 +64,7 @@ def _float_env(name: str, default: float) -> float:
 CONF_THRESHOLD: float = _float_env("ARIA_MODEL_CONF", 0.12)
 IOU_THRESHOLD: float = _float_env("ARIA_MODEL_IOU", 0.45)
 TEST_TIME_AUGMENT: bool = os.environ.get("ARIA_MODEL_AUGMENT", "false").lower() in {"1", "true", "yes", "on"}
+INFERENCE_DEVICE: str = os.environ.get("ARIA_INFERENCE_DEVICE", "cpu")
 
 # Serializes model.predict() across request threads.  Ultralytics mutates
 # shared state on the model object (self.predictor, self.dataset, ...) and each
@@ -141,6 +142,7 @@ def detect(img_array: np.ndarray, model: Any) -> list[dict[str, Any]]:
             augment=TEST_TIME_AUGMENT,
             verbose=False,
             imgsz=640,
+            device=INFERENCE_DEVICE,
         )
 
     # Guard: no results or no boxes

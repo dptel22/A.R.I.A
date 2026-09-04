@@ -1,0 +1,44 @@
+# Python and virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_tmp/
+.python-runtime/
+.yolo-config/
+
+# Git and IDE configs
+.git/
+.gitignore
+.idea/
+.agents/
+.claude/
+.zcode/
+
+# Frontend build & dependencies
+frontend/node_modules/
+frontend/dist/
+frontend.7z
+
+# Runtime state & databases
+runtime/
+models/*.pt
+*.db
+*.db-wal
+*.db-shm
+api-test-*.db*
+intake-test-*
+intake-legacy-*
+
+# Secrets & local logs
+.env
+.env.local
+frontend/.env.local
+*.log
+
+# Experimental and labeling tools
+experiments/
+label-studio/
+.label-studio-data/

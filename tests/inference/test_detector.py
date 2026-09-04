@@ -147,6 +147,7 @@ def test_detect_passes_runtime_inference_settings(monkeypatch):
     monkeypatch.setattr(detector_module, "CONF_THRESHOLD", 0.07)
     monkeypatch.setattr(detector_module, "IOU_THRESHOLD", 0.33)
     monkeypatch.setattr(detector_module, "TEST_TIME_AUGMENT", True)
+    monkeypatch.setattr(detector_module, "INFERENCE_DEVICE", "0")
 
     detections = detector_module.detect(np.zeros((32, 32, 3), dtype=np.uint8), model)
 
@@ -155,6 +156,7 @@ def test_detect_passes_runtime_inference_settings(monkeypatch):
     assert model.kwargs["iou"] == 0.33
     assert model.kwargs["augment"] is True
     assert model.kwargs["imgsz"] == 640
+    assert model.kwargs["device"] == "0"
 
 
 def test_float_env_rejects_nan(monkeypatch):

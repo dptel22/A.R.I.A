@@ -1,8 +1,7 @@
-const API_BASE = (import.meta.env.VITE_ARIA_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-const API_KEY = import.meta.env.VITE_ARIA_API_KEY || '';
+const API_BASE = (import.meta.env.VITE_ARIA_API_URL || '').replace(/\/$/, '');
 
 function buildHeaders(extraHeaders: HeadersInit = {}): HeadersInit {
-  return API_KEY ? { 'x-api-key': API_KEY, ...extraHeaders } : extraHeaders;
+  return extraHeaders;
 }
 
 async function parseError(response: Response): Promise<string> {

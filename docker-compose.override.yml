@@ -1,0 +1,18 @@
+services:
+  backend:
+    volumes:
+      - ./aria:/app/aria
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+      - aria_runtime:/app/runtime
+      - aria_models:/app/models
+    command:
+      - uv
+      - run
+      - uvicorn
+      - aria.api.app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload

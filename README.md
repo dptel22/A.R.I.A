@@ -150,82 +150,108 @@ A.R.I.A/
 
 ### Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Python | 3.11+ |
-| Node.js | 18+ |
-| npm | 9+ |
+| Tool | Version | Notes |
+|------|---------|-------|
+| uv | >=0.4.0 | Recommended canonical package manager |
+| Python | 3.11 | Python 3.11 runtime |
+| Node.js | 18+ | For React frontend |
+| Docker & Compose | Modern (v2+) | For containerized CPU/GPU deployment |
 
-### 1. Clone the Repository
+---
+
+### Local Development (uv — Canonical)
+
+#### 1. Clone & Synchronize Dependencies
 
 ```bash
 git clone https://github.com/dptel22/A.R.I.A.git
 cd A.R.I.A
+
+# Synchronize virtual environment directly from uv.lock
+uv sync
 ```
 
-### 2. Set Up the Backend
+*(Compatibility path: `python -m pip install -r requirements.txt` is maintained as a fallback)*
 
-```bash
-python -m venv .venv
-
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-pip install pytest
-```
-
-Configure environment:
+#### 2. Configure Environment
 
 ```bash
 cp .env.example .env   # macOS/Linux
 copy .env.example .env # Windows
 ```
 
-Key `.env` defaults:
-
-```
-ARIA_DB_PATH=./runtime/db/aria.db
-ARIA_MODEL_PATH=./models/aria_stage1.pt
-ARIA_UPLOAD_DIR=./runtime/uploads
-```
-
-### 3. Seed Demo Data
+#### 3. Model Weights & Database Seed
 
 ```bash
-python -m aria.db.seed
+# Download YOLO weights from latest release
+uv run python -m scripts.download_model
+
+# Seed demo road segments, contracts, and inspections
+uv run python -m aria.db.seed
 ```
 
-Creates demo road segments, contracts, and seeded inspections in the local SQLite DB.
+#### 4. Run Services
 
-### 4. Start the Backend
-
+**Backend (Port 8000):**
 ```bash
-uvicorn aria.api.app:app --reload --port 8000
+uv run uvicorn aria.api.app:app --reload --port 8000
 ```
+Interactive Swagger docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-Verify: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### 5. Start the Frontend
-
+**Frontend (Port 3000):**
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local   # macOS/Linux
-copy .env.example .env.local # Windows
 npm run dev
 ```
+Open: [http://localhost:3000](http://localhost:3000) (Vite dev proxy transparently handles API authentication without exposing secrets in browser code).
 
-Set in `frontend/.env.local`:
+**Windows 1-Click Startup:**
+Run `start_windows.bat` to automatically sync with `uv`, check weights, and launch both backend and frontend.
 
+---
+
+### Docker Container Deployment
+
+A.R.I.A provides a production-grade, reproducible container architecture:
+* **Nginx Reverse Proxy**: Only service exposed to host (`:3000`), injects `X-Api-Key` server-side so production API keys are never visible to browsers.
+* **Non-Root FastAPI Backend**: Runs as `aria:aria` user on internal network (`aria-net`), exposing port 8000 only to Nginx.
+* **Persistent Named Volumes**: `aria_runtime` (SQLite DB, uploads, notice PDFs) and `aria_models` (YOLO `.pt` weights).
+* **Single Worker YOLO**: Serialized inference pipeline on batch-1 / `imgsz=640`.
+
+#### CPU Production Deployment
+
+```bash
+# Build and start services
+docker compose -f docker-compose.yml up -d --build
+
+# Verify health status
+docker compose -f docker-compose.yml ps
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
 ```
-VITE_ARIA_API_URL=http://localhost:8000
-VITE_ARIA_API_KEY=<same value as ARIA_API_KEY in .env>
+
+#### NVIDIA GPU Production Deployment
+
+```bash
+# Start with GPU override (requires NVIDIA Container Toolkit)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 ```
 
-Open: [http://localhost:3000](http://localhost:3000)
+Inside the GPU container, inference executes on the dedicated CUDA device (`ARIA_INFERENCE_DEVICE=0`).
+
+#### Local Dev via Compose (Live Reload)
+
+```bash
+# Mounts local source directories with live reload
+docker compose up
+```
+
+To stop containers:
+```bash
+docker compose down
+# Note: named volumes (aria_runtime, aria_models) survive. To wipe: docker compose down -v
+```
 
 ---
 
@@ -289,9 +315,11 @@ python -m scripts.run_benchmark --limit 50
 ### Backend Tests
 
 ```bash
-.venv/bin/python -m pytest tests -q
-# Windows:
-.venv\Scripts\python -m pytest tests -q
+# Primary (uv)
+uv run pytest tests -q
+
+# Compatibility (pip / active virtualenv)
+pytest tests -q
 ```
 
 ### Frontend Checks

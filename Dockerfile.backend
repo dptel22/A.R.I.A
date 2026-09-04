@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=python:3.11-slim-bookworm
+FROM ${BASE_IMAGE} AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=auto \
+    PATH="/app/.venv/bin:$PATH"
+
+# Install OS dependencies: curl (for container healthcheck) and OpenCV runtime libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pinned uv binaries from official uv image
+COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /uvx /bin/
+
+# Create non-root user and application directories
+RUN id -u aria >/dev/null 2>&1 || (groupadd -g 1000 aria 2>/dev/null || true; useradd -u 1000 -g aria -m -s /bin/bash aria 2>/dev/null || true)
+
+WORKDIR /app
+
+# Pre-create volume and runtime directories with correct non-root permissions
+RUN mkdir -p /app/models \
+             /app/runtime/db \
+             /app/runtime/uploads \
+             /app/runtime/notices \
+             /app/runtime/ultralytics \
+    && chown -R aria:aria /app
+
+# Cache dependency resolution layer
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-dev
+
+# Copy application source and scripts
+COPY aria/ /app/aria/
+COPY scripts/ /app/scripts/
+COPY data/ /app/data/
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+# Complete installation and set file permissions
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev \
+    && chmod +x /app/docker-entrypoint.sh \
+    && chown -R aria:aria /app
+
+USER aria
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
