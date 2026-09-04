@@ -52,11 +52,16 @@ export default function UploadInspectionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="upload-modal-title"
+    >
       <div className="w-full max-w-xl surface-base p-6">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h2 className="text-lg font-bold text-civic-blue">Run Detection</h2>
+            <h2 id="upload-modal-title" className="text-lg font-bold text-civic-blue">Run Detection</h2>
             <p className="text-sm text-slate-500 mt-1">
               Upload a geo-tagged inspection image to the live FastAPI detection pipeline.
             </p>
@@ -64,7 +69,8 @@ export default function UploadInspectionModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 transition-colors"
+            aria-label="Close dialog"
+            className="p-2 text-slate-400 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-authority-blue rounded-xs"
           >
             <X size={18} />
           </button>
@@ -72,13 +78,14 @@ export default function UploadInspectionModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+            <label htmlFor="upload-file" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
               Inspection Image
             </label>
             <label className="flex items-center justify-center gap-3 border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-sm text-slate-600 cursor-pointer hover:border-civic-blue transition-colors">
               <Upload size={18} className="text-civic-blue" />
               <span>{file ? file.name : 'Choose JPEG or PNG evidence'}</span>
               <input
+                id="upload-file"
                 type="file"
                 accept="image/png,image/jpeg"
                 className="hidden"
@@ -89,10 +96,11 @@ export default function UploadInspectionModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+              <label htmlFor="upload-lat" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                 Latitude
               </label>
               <input
+                id="upload-lat"
                 type="number"
                 step="any"
                 value={lat}
@@ -102,10 +110,11 @@ export default function UploadInspectionModal({
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+              <label htmlFor="upload-lng" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                 Longitude
               </label>
               <input
+                id="upload-lng"
                 type="number"
                 step="any"
                 value={lng}
@@ -117,9 +126,24 @@ export default function UploadInspectionModal({
           </div>
 
           <div className="surface-nested p-3 text-xs text-slate-600">
-            Use coordinates that fall within a seeded road segment. Example Bengaluru demo points:
-            <span className="mono-text"> 12.9310, 77.6450</span> or
-            <span className="mono-text"> 13.0600, 77.5950</span>.
+            Use coordinates that fall within a seeded road segment. Example Bengaluru demo points:{' '}
+            <button
+              type="button"
+              onClick={() => { setLat('12.9310'); setLng('77.6450'); }}
+              className="mono-text underline underline-offset-2 hover:text-authority-blue focus:outline-none focus-visible:ring-1 focus-visible:ring-authority-blue rounded-xs cursor-pointer"
+              title="Click to fill coordinates"
+            >
+              12.9310, 77.6450
+            </button>{' '}
+            or{' '}
+            <button
+              type="button"
+              onClick={() => { setLat('13.0600'); setLng('77.5950'); }}
+              className="mono-text underline underline-offset-2 hover:text-authority-blue focus:outline-none focus-visible:ring-1 focus-visible:ring-authority-blue rounded-xs cursor-pointer"
+              title="Click to fill coordinates"
+            >
+              13.0600, 77.5950
+            </button>.
           </div>
 
           {error && <div className="text-sm text-red-700 bg-red-50 border border-red-100 px-3 py-2 rounded-sm">{error}</div>}
